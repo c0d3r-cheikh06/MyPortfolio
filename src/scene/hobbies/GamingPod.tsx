@@ -130,8 +130,8 @@ export function GamingPod() {
   return (
     <group
       name="GamingPod"
-      position={[6.8, 0, -4.2]}
-      rotation={[0, -2.18, 0]}
+      position={[8.9, 0, -5.3]}
+      rotation={[0, -2.25, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();
         setHovered(true);

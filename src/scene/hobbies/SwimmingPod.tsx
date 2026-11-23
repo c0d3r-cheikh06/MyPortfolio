@@ -109,7 +109,7 @@ export function SwimmingPod() {
   return (
     <group
       name="SwimmingPod"
-      position={[-7.3, 0, -5.0]}
+      position={[-9.3, 0, -5.4]}
       rotation={[0, 0.56, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();

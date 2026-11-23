@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import type { ProjectItem } from "@/data/projects";
@@ -24,11 +23,10 @@ interface UniverseCanvasProps {
 
 export function UniverseCanvas({ projects }: UniverseCanvasProps) {
   const quality = useUniverseStore((s) => s.quality);
-  const setQuality = useUniverseStore((s) => s.setQuality);
   const [contextLost, setContextLost] = useState(false);
 
   const dpr: [number, number] =
-    quality === "high" ? [1, 1.75] : quality === "medium" ? [1, 1.35] : [0.85, 1.0];
+    quality === "high" ? [1, 1.6] : quality === "medium" ? [1, 1.25] : [0.85, 1.0];
 
   if (contextLost) {
     return (
@@ -48,12 +46,12 @@ export function UniverseCanvas({ projects }: UniverseCanvasProps) {
       <Canvas
         shadows={quality !== "low"}
         dpr={dpr}
-        camera={{ position: [0.8, 4.6, 15.5], fov: 48, near: 0.1, far: 260 }}
+        camera={{ position: [0.6, 3.8, 12.2], fov: 46, near: 0.1, far: 280 }}
         gl={{
           antialias: quality !== "low",
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.08,
+          toneMappingExposure: 1.04,
         }}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", (e) => {
@@ -62,13 +60,6 @@ export function UniverseCanvas({ projects }: UniverseCanvasProps) {
           });
         }}
       >
-        <PerformanceMonitor
-          onDecline={() => {
-            if (quality === "high") setQuality("medium");
-            else if (quality === "medium") setQuality("low");
-          }}
-        />
-
         <SkyUniverse />
         <LightingRig />
         <CameraRig />
@@ -83,16 +74,16 @@ export function UniverseCanvas({ projects }: UniverseCanvasProps) {
           <SwimmingPod />
         </Suspense>
 
-        {/* Controlled cinematic bloom + subtle vignette on medium & high tiers */}
+        {/* Subtle photographic selective Bloom (only true emissive highlights, never washes out the face!) */}
         {quality !== "low" && (
           <EffectComposer multisampling={quality === "high" ? 4 : 0}>
             <Bloom
-              intensity={0.42}
-              luminanceThreshold={0.78}
-              luminanceSmoothing={0.28}
+              intensity={0.26}
+              luminanceThreshold={0.94}
+              luminanceSmoothing={0.24}
               mipmapBlur
             />
-            <Vignette eskil={false} offset={0.26} darkness={0.46} />
+            <Vignette eskil={false} offset={0.28} darkness={0.42} />
           </EffectComposer>
         )}
       </Canvas>

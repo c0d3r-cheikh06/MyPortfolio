@@ -13,7 +13,7 @@ import {
 import type { ProjectItem } from "@/data/projects";
 import { useUniverseStore } from "@/store/useUniverseStore";
 
-/** Helper to generate a curved monitor screen geometry (cylindrical arc facing +Z) */
+/** Curved cylindrical-arc monitor geometry facing +Z */
 function createCurvedScreenGeo(width: number, height: number, radius: number, segments = 24) {
   const geo = new THREE.PlaneGeometry(width, height, segments, 1);
   const pos = geo.attributes.position;
@@ -27,7 +27,7 @@ function createCurvedScreenGeo(width: number, height: number, radius: number, se
   return geo;
 }
 
-/** Mechanical keyboard with instanced sculpted keycaps (single draw call!) */
+/** Mechanical 65% keyboard with instanced sculpted PBT keycaps */
 function MechanicalKeyboard({ position }: { position: [number, number, number] }) {
   const keysRef = useRef<THREE.InstancedMesh>(null);
   const keyPositions = useMemo(() => {
@@ -36,7 +36,6 @@ function MechanicalKeyboard({ position }: { position: [number, number, number] }
     rows.forEach((cols, r) => {
       const z = -0.056 + r * 0.027;
       if (r === 4) {
-        // Bottom row with wide spacebar
         const spec = [
           [-0.175, 0.028],
           [-0.142, 0.028],
@@ -73,26 +72,23 @@ function MechanicalKeyboard({ position }: { position: [number, number, number] }
 
   return (
     <group position={position} rotation={[0.07, 0, 0]}>
-      {/* CNC anodized aluminum case */}
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[0.41, 0.02, 0.155]} />
-        <meshStandardMaterial color="#1A222C" metalness={0.85} roughness={0.28} />
+        <boxGeometry args={[0.42, 0.022, 0.16]} />
+        <meshStandardMaterial color="#1D2632" metalness={0.86} roughness={0.26} />
       </mesh>
-      {/* Subtle mint underglow switch plate */}
-      <mesh position={[0, 0.011, 0]}>
-        <boxGeometry args={[0.385, 0.002, 0.135]} />
-        <meshBasicMaterial color="#4EF2B8" transparent opacity={0.5} />
+      <mesh position={[0, 0.012, 0]}>
+        <boxGeometry args={[0.39, 0.002, 0.136]} />
+        <meshBasicMaterial color="#4EF2B8" transparent opacity={0.42} />
       </mesh>
-      {/* Instanced PBT matte keycaps */}
       <instancedMesh ref={keysRef} args={[undefined, undefined, keyPositions.length]} castShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#10151C" roughness={0.65} metalness={0.1} />
+        <meshStandardMaterial color="#12171F" roughness={0.62} metalness={0.14} />
       </instancedMesh>
     </group>
   );
 }
 
-/** Transparent tempered-glass high-end PC tower with visible GPU, RAM, AIO cooler & spinning fans */
+/** High-detail transparent tempered-glass custom PC tower with GPU, DDR5 RAM, AIO tubes & spinning fans */
 function TransparentPCTower({ position }: { position: [number, number, number] }) {
   const fanRefs = useRef<(THREE.Group | null)[]>([]);
   const reducedMotion = useUniverseStore((s) => s.reducedMotion);
@@ -126,86 +122,80 @@ function TransparentPCTower({ position }: { position: [number, number, number] }
   });
 
   return (
-    <group position={position} rotation={[0, -0.22, 0]}>
-      {/* Chassis structural frame (back, bottom, top, PSU shroud) */}
-      <mesh position={[0, 0.04, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.28, 0.08, 0.56]} />
-        <meshStandardMaterial color="#121820" metalness={0.82} roughness={0.32} />
+    <group position={position} rotation={[0, -0.26, 0]}>
+      {/* Aluminum corner rails & base PSU shroud */}
+      <mesh position={[0, 0.045, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.30, 0.09, 0.58]} />
+        <meshStandardMaterial color="#141C26" metalness={0.84} roughness={0.28} />
       </mesh>
-      <mesh position={[0, 0.54, 0]} castShadow>
-        <boxGeometry args={[0.28, 0.03, 0.56]} />
-        <meshStandardMaterial color="#18202B" metalness={0.85} roughness={0.28} />
+      <mesh position={[0, 0.56, 0]} castShadow>
+        <boxGeometry args={[0.30, 0.032, 0.58]} />
+        <meshStandardMaterial color="#1B2533" metalness={0.86} roughness={0.25} />
       </mesh>
-      {/* Back steel panel & motherboard tray */}
-      <mesh position={[0.125, 0.29, 0]} castShadow>
-        <boxGeometry args={[0.022, 0.48, 0.54]} />
-        <meshStandardMaterial color="#11171F" metalness={0.75} roughness={0.4} />
+      <mesh position={[0.135, 0.30, 0]} castShadow>
+        <boxGeometry args={[0.024, 0.50, 0.56]} />
+        <meshStandardMaterial color="#121922" metalness={0.78} roughness={0.36} />
       </mesh>
-      {/* Rear panel */}
-      <mesh position={[0, 0.29, -0.27]}>
-        <boxGeometry args={[0.28, 0.48, 0.02]} />
-        <meshStandardMaterial color="#141C26" metalness={0.8} roughness={0.35} />
+      <mesh position={[0, 0.30, -0.28]}>
+        <boxGeometry args={[0.30, 0.50, 0.022]} />
+        <meshStandardMaterial color="#16202C" metalness={0.82} roughness={0.32} />
       </mesh>
 
-      {/* Internal Motherboard PCB */}
-      <mesh position={[0.095, 0.31, -0.05]}>
-        <boxGeometry args={[0.015, 0.34, 0.34]} />
-        <meshStandardMaterial color="#0A0E14" metalness={0.45} roughness={0.5} />
+      {/* Motherboard PCB */}
+      <mesh position={[0.102, 0.32, -0.05]}>
+        <boxGeometry args={[0.015, 0.36, 0.36]} />
+        <meshStandardMaterial color="#0A0F15" metalness={0.45} roughness={0.5} />
       </mesh>
 
-      {/* AIO CPU Liquid Cooler Block with glowing mint ring */}
-      <mesh position={[0.065, 0.33, -0.04]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.042, 0.042, 0.04, 24]} />
-        <meshStandardMaterial color="#1C2430" metalness={0.88} roughness={0.2} />
+      {/* AIO CPU Liquid Cooler Block + Mint Halo */}
+      <mesh position={[0.072, 0.34, -0.04]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.044, 0.044, 0.042, 24]} />
+        <meshStandardMaterial color="#1E2835" metalness={0.88} roughness={0.18} />
       </mesh>
-      <mesh position={[0.043, 0.33, -0.04]} rotation={[0, -Math.PI / 2, 0]}>
-        <ringGeometry args={[0.024, 0.031, 24]} />
+      <mesh position={[0.049, 0.34, -0.04]} rotation={[0, -Math.PI / 2, 0]}>
+        <ringGeometry args={[0.025, 0.033, 24]} />
         <meshBasicMaterial color="#4EF2B8" side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Curved AIO Liquid Cooling Tubes */}
       {aioTubes.map((geo, i) => (
-        <mesh key={i} position={[0.03, 0.06, -0.02]} geometry={geo}>
-          <meshStandardMaterial color="#0E1319" roughness={0.7} metalness={0.2} />
+        <mesh key={i} position={[0.03, 0.07, -0.02]} geometry={geo}>
+          <meshStandardMaterial color="#0F141B" roughness={0.68} metalness={0.2} />
         </mesh>
       ))}
 
-      {/* 4 Illuminated DDR5 RAM DIMM Sticks */}
+      {/* 4 Illuminated DDR5 RAM Modules */}
       {[0, 1, 2, 3].map((i) => (
-        <group key={i} position={[0.068, 0.34, 0.035 + i * 0.018]}>
+        <group key={i} position={[0.072, 0.35, 0.038 + i * 0.019]}>
           <mesh>
-            <boxGeometry args={[0.036, 0.13, 0.008]} />
-            <meshStandardMaterial color="#1E2733" metalness={0.8} roughness={0.25} />
+            <boxGeometry args={[0.038, 0.135, 0.008]} />
+            <meshStandardMaterial color="#1E2836" metalness={0.82} roughness={0.24} />
           </mesh>
-          <mesh position={[-0.019, 0, 0]}>
-            <boxGeometry args={[0.004, 0.125, 0.006]} />
+          <mesh position={[-0.02, 0, 0]}>
+            <boxGeometry args={[0.004, 0.128, 0.006]} />
             <meshBasicMaterial color={i % 2 === 0 ? "#4EF2B8" : "#7DE9F8"} />
           </mesh>
         </group>
       ))}
 
-      {/* Heavyweight Dual-Slot Flagship GPU */}
-      <group position={[0.01, 0.19, -0.05]}>
+      {/* Flagship Dual-Slot GPU */}
+      <group position={[0.012, 0.20, -0.05]}>
         <mesh castShadow>
-          <boxGeometry args={[0.16, 0.052, 0.31]} />
-          <meshStandardMaterial color="#1E2632" metalness={0.85} roughness={0.26} />
+          <boxGeometry args={[0.17, 0.055, 0.33]} />
+          <meshStandardMaterial color="#202A37" metalness={0.86} roughness={0.24} />
         </mesh>
-        {/* GPU side accent LED strip */}
-        <mesh position={[-0.081, 0.006, 0]}>
-          <boxGeometry args={[0.003, 0.01, 0.24]} />
+        <mesh position={[-0.086, 0.007, 0]}>
+          <boxGeometry args={[0.004, 0.011, 0.25]} />
           <meshBasicMaterial color="#4EF2B8" />
         </mesh>
       </group>
 
-      {/* 3 Front Actively Spinning Mint-Halo Intake Fans */}
-      {[0.17, 0.30, 0.43].map((fy, idx) => (
-        <group key={idx} position={[0, fy, 0.245]}>
-          {/* Fan housing ring */}
+      {/* 3 Spinning Mint-Halo Intake Fans */}
+      {[0.175, 0.31, 0.445].map((fy, idx) => (
+        <group key={idx} position={[0, fy, 0.255]}>
           <mesh>
-            <torusGeometry args={[0.056, 0.007, 10, 24]} />
+            <torusGeometry args={[0.058, 0.007, 10, 24]} />
             <meshBasicMaterial color="#4EF2B8" />
           </mesh>
-          {/* Rotating blades */}
           <group
             ref={(el) => {
               fanRefs.current[idx] = el;
@@ -216,39 +206,38 @@ function TransparentPCTower({ position }: { position: [number, number, number] }
                 key={b}
                 rotation={[0.25, 0, (b / 5) * Math.PI * 2]}
                 position={[
-                  Math.cos((b / 5) * Math.PI * 2) * 0.025,
-                  Math.sin((b / 5) * Math.PI * 2) * 0.025,
+                  Math.cos((b / 5) * Math.PI * 2) * 0.026,
+                  Math.sin((b / 5) * Math.PI * 2) * 0.026,
                   0,
                 ]}
               >
-                <boxGeometry args={[0.044, 0.014, 0.004]} />
-                <meshStandardMaterial color="#273444" metalness={0.6} roughness={0.4} />
+                <boxGeometry args={[0.046, 0.015, 0.004]} />
+                <meshStandardMaterial color="#2A3848" metalness={0.62} roughness={0.36} />
               </mesh>
             ))}
           </group>
         </group>
       ))}
 
-      {/* Tempered Glass Side Panel & Front Glass Panel */}
-      <mesh position={[-0.138, 0.295, 0]}>
-        <boxGeometry args={[0.008, 0.47, 0.54]} />
+      {/* Tempered Glass Side & Front Panels */}
+      <mesh position={[-0.148, 0.305, 0]}>
+        <boxGeometry args={[0.008, 0.49, 0.56]} />
         <meshPhysicalMaterial
           color="#9FD8E8"
           transparent
-          opacity={0.22}
-          roughness={0.08}
+          opacity={0.2}
+          roughness={0.07}
           metalness={0.12}
-          reflectivity={0.95}
           clearcoat={1}
         />
       </mesh>
-      <mesh position={[0, 0.295, 0.278]}>
-        <boxGeometry args={[0.27, 0.47, 0.008]} />
+      <mesh position={[0, 0.305, 0.288]}>
+        <boxGeometry args={[0.29, 0.49, 0.008]} />
         <meshPhysicalMaterial
           color="#9FD8E8"
           transparent
-          opacity={0.18}
-          roughness={0.08}
+          opacity={0.16}
+          roughness={0.07}
           metalness={0.1}
           clearcoat={1}
         />
@@ -257,7 +246,7 @@ function TransparentPCTower({ position }: { position: [number, number, number] }
   );
 }
 
-/** Interactive Project Terminal Kiosk displaying a verified GitHub project */
+/** Interactive Curved Project Lab Terminal displaying a verified GitHub project */
 function ProjectTerminal({
   project,
   position,
@@ -271,7 +260,7 @@ function ProjectTerminal({
 }) {
   const [hovered, setHovered] = useState(false);
   const screenTex = useMemo(() => createProjectScreenTexture(project), [project]);
-  const curvedGeo = useMemo(() => createCurvedScreenGeo(1.36, 0.82, 3.6, 20), []);
+  const curvedGeo = useMemo(() => createCurvedScreenGeo(1.32, 0.80, 3.6, 20), []);
   const phase = useUniverseStore((s) => s.phase);
 
   useEffect(() => {
@@ -305,51 +294,114 @@ function ProjectTerminal({
         onSelect(project.slug);
       }}
     >
-      {/* Brushed aluminum pedestal column */}
-      <mesh position={[0, 0.54, -0.08]} castShadow receiveShadow>
-        <boxGeometry args={[0.14, 1.08, 0.14]} />
-        <meshStandardMaterial color="#18202B" metalness={0.85} roughness={0.28} />
+      {/* Sculpted tapered aluminum pedestal */}
+      <mesh position={[0, 0.56, -0.09]} rotation={[0.08, 0, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.055, 0.085, 1.12, 16]} />
+        <meshStandardMaterial color="#1C2634" metalness={0.86} roughness={0.26} />
       </mesh>
-      {/* Weighted base plate */}
       <mesh position={[0, 0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[0.32, 0.38, 0.06, 24]} />
-        <meshStandardMaterial color="#141C25" metalness={0.82} roughness={0.32} />
+        <cylinderGeometry args={[0.30, 0.36, 0.06, 32]} />
+        <meshStandardMaterial color="#151E2A" metalness={0.84} roughness={0.28} />
       </mesh>
-      {/* Curved monitor chassis backing */}
-      <mesh position={[0, 1.24, -0.025]} rotation={[-0.08, 0, 0]} castShadow>
-        <boxGeometry args={[1.44, 0.89, 0.04]} />
+      <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.27, 0.295, 32]} />
+        <meshBasicMaterial color={hovered ? "#ECF3F7" : project.accentColor} transparent opacity={0.7} />
+      </mesh>
+
+      {/* Beveled Metallic Display Housing */}
+      <mesh position={[0, 1.24, -0.025]} rotation={[-0.07, 0, 0]} castShadow>
+        <boxGeometry args={[1.40, 0.87, 0.038]} />
         <meshStandardMaterial
-          color="#131A24"
-          metalness={0.86}
-          roughness={0.24}
+          color="#16202C"
+          metalness={0.88}
+          roughness={0.22}
           emissive={hovered ? project.accentColor : "#000000"}
-          emissiveIntensity={hovered ? 0.25 : 0}
+          emissiveIntensity={hovered ? 0.22 : 0}
         />
       </mesh>
-      {/* Luminous project display screen */}
-      <mesh position={[0, 1.24, 0.01]} rotation={[-0.08, 0, 0]} geometry={curvedGeo}>
+      {/* Curved Luminous Project Screen */}
+      <mesh position={[0, 1.24, 0.012]} rotation={[-0.07, 0, 0]} geometry={curvedGeo}>
         <meshStandardMaterial
           map={screenTex}
           emissiveMap={screenTex}
           emissive="#ffffff"
-          emissiveIntensity={hovered ? 1.05 : 0.72}
-          roughness={0.18}
+          emissiveIntensity={hovered ? 0.92 : 0.68}
+          roughness={0.16}
           metalness={0.08}
         />
       </mesh>
-      {/* Top status bar light */}
-      <mesh position={[0, 1.70, -0.04]} rotation={[-0.08, 0, 0]}>
-        <boxGeometry args={[0.68, 0.016, 0.018]} />
+      {/* Thin Top Accent Bar */}
+      <mesh position={[0, 1.69, -0.038]} rotation={[-0.07, 0, 0]}>
+        <boxGeometry args={[0.56, 0.014, 0.016]} />
         <meshBasicMaterial color={hovered ? "#ECF3F7" : project.accentColor} />
       </mesh>
 
       {phase === "active" && hovered && (
-        <Html position={[0, 1.92, 0]} center distanceFactor={7} style={{ pointerEvents: "none" }}>
+        <Html position={[0, 1.9, 0]} center distanceFactor={7} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded border border-[#4EF2B8]/40 bg-[#070C12]/90 px-2.5 py-1 text-[11px] font-mono text-[#ECF3F7] backdrop-blur-md">
-            <span className="text-[#4EF2B8]">PROJECT //</span> {project.title}
+            <span className="text-[#4EF2B8]">PROJECT {"//"}</span> {project.title}
           </div>
         </Html>
       )}
+    </group>
+  );
+}
+
+/** Graceful Sweeping Aerospace Observatory Arch Ribs (replaces flat boxy pillars!) */
+function ObservatoryCanopyArches({ metalTex }: { metalTex: ReturnType<typeof createBrushedMetalTextures> }) {
+  const { ribs, ringBeam } = useMemo(() => {
+    const angles = [-1.08, -0.54, 0, 0.54, 1.08];
+    const rList = angles.map((ang) => {
+      const s = Math.sin(ang);
+      const c = Math.cos(ang);
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(s * 6.22, -0.05, -0.4 - c * 6.22),
+        new THREE.Vector3(s * 6.38, 1.85, -0.4 - c * 6.38),
+        new THREE.Vector3(s * 5.75, 3.65, -0.4 - c * 5.75),
+        new THREE.Vector3(s * 4.25, 4.75, -0.4 - c * 4.25),
+      ]);
+      return new THREE.TubeGeometry(curve, 28, 0.085, 10, false);
+    });
+
+    // Sweeping upper crown ring beam connecting all 5 arch tips smoothly
+    const crownPts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 32; i++) {
+      const ang = -1.12 + (2.24 * i) / 32;
+      crownPts.push(new THREE.Vector3(Math.sin(ang) * 4.25, 4.75, -0.4 - Math.cos(ang) * 4.25));
+    }
+    const rBeam = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(crownPts), 40, 0.065, 10, false);
+
+    return { ribs: rList, ringBeam: rBeam };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      ribs.forEach((g) => g.dispose());
+      ringBeam.dispose();
+    };
+  }, [ribs, ringBeam]);
+
+  return (
+    <group name="ObservatoryCanopy">
+      {ribs.map((geo, i) => (
+        <mesh key={i} geometry={geo} castShadow>
+          <meshStandardMaterial
+            map={metalTex.map}
+            roughnessMap={metalTex.roughnessMap}
+            color="#24303E"
+            metalness={0.86}
+            roughness={0.28}
+          />
+        </mesh>
+      ))}
+      <mesh geometry={ringBeam}>
+        <meshStandardMaterial color="#1F2B38" metalness={0.88} roughness={0.24} />
+      </mesh>
+      {/* Subtle architectural grazing light halo along upper crown */}
+      <mesh position={[0, 4.69, -4.64]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[4.25, 0.015, 8, 48, 2.2]} />
+        <meshBasicMaterial color="#4EF2B8" transparent opacity={0.55} />
+      </mesh>
     </group>
   );
 }
@@ -367,8 +419,8 @@ export function TechLab({ projects }: TechLabProps) {
   const codeCenter = useMemo(() => createCodeScreenTexture("system"), []);
   const codeLeft = useMemo(() => createCodeScreenTexture("shader"), []);
   const codeRight = useMemo(() => createCodeScreenTexture("telemetry"), []);
-  const mainMonitorGeo = useMemo(() => createCurvedScreenGeo(1.42, 0.66, 3.2, 24), []);
-  const sideMonitorGeo = useMemo(() => createCurvedScreenGeo(0.92, 0.58, 2.8, 18), []);
+  const mainMonitorGeo = useMemo(() => createCurvedScreenGeo(1.52, 0.72, 3.2, 24), []);
+  const sideMonitorGeo = useMemo(() => createCurvedScreenGeo(0.98, 0.62, 2.8, 18), []);
 
   useEffect(() => {
     return () => {
@@ -386,13 +438,11 @@ export function TechLab({ projects }: TechLabProps) {
     };
   }, [floorTex, metalTex, codeCenter, codeLeft, codeRight, mainMonitorGeo, sideMonitorGeo]);
 
-  // Select the 6 featured projects for the interactive terminals around the lab
   const featuredSix = useMemo(() => {
     const f = projects.filter((p) => p.featured).slice(0, 6);
     return f.length >= 6 ? f : projects.slice(0, 6);
   }, [projects]);
 
-  // Curved arc positions flanking the rear laboratory observatory
   const terminalPlacements: { pos: [number, number, number]; rot: [number, number, number] }[] = [
     { pos: [-3.95, 0, -4.15], rot: [0, 0.56, 0] },
     { pos: [-2.45, 0, -5.05], rot: [0, 0.28, 0] },
@@ -402,123 +452,105 @@ export function TechLab({ projects }: TechLabProps) {
     { pos: [3.95, 0, -4.15], rot: [0, -0.56, 0] },
   ];
 
-  // Skybridges connecting Main Lab to the 3 Satellite Hobby Pods
-  const walkways = [
-    // To Football Arena (7.5, 2.3)
-    { pos: [4.95, -0.06, 1.55] as [number, number, number], rotY: -0.31, len: 3.1 },
-    // To Gaming Pod (6.8, -4.2)
-    { pos: [4.75, -0.06, -2.95] as [number, number, number], rotY: 0.56, len: 3.0 },
-    // To Swimming Pod (-7.3, -5.0)
-    { pos: [-4.95, -0.06, -3.4] as [number, number, number], rotY: -0.59, len: 3.3 },
-  ];
+  // Cleanly computed skybridges bridging Main Deck (r=6.35 around [0,0,-0.4]) -> Satellite Pods
+  const walkways = useMemo(() => {
+    const targets: [number, number, number][] = [
+      [9.9, 0, 2.3], // Football Arena (radius 2.65)
+      [8.9, 0, -5.3], // Gaming Pod (radius 2.45)
+      [-9.3, 0, -5.4], // Swimming Pod (radius ~2.4)
+    ];
+    const radii = [2.6, 2.4, 2.35];
+    const origin = new THREE.Vector2(0, -0.4);
+    return targets.map((t, i) => {
+      const dest = new THREE.Vector2(t[0], t[2]);
+      const diff = dest.clone().sub(origin);
+      const dist = diff.length();
+      const dir = diff.clone().normalize();
+      const startDist = 6.2;
+      const endDist = dist - radii[i] + 0.15;
+      const midDist = (startDist + endDist) * 0.5;
+      const len = Math.max(0.8, endDist - startDist);
+      const mid = origin.clone().addScaledVector(dir, midDist);
+      const rotY = -Math.atan2(dir.y, dir.x);
+      return { pos: [mid.x, -0.08, mid.y] as [number, number, number], rotY, len };
+    });
+  }, []);
 
   return (
     <group name="TechLab">
       {/* Main Circular Observatory Deck */}
       <group position={[0, 0, -0.4]}>
-        {/* Primary matte carbon-slate deck surface */}
         <mesh position={[0, -0.14, 0]} receiveShadow>
-          <cylinderGeometry args={[6.4, 6.75, 0.28, 64]} />
+          <cylinderGeometry args={[6.35, 6.72, 0.28, 72]} />
           <meshStandardMaterial
             map={floorTex.map}
             roughnessMap={floorTex.roughnessMap}
             bumpMap={floorTex.bumpMap}
             bumpScale={0.015}
-            metalness={0.35}
-            roughness={0.58}
+            metalness={0.38}
+            roughness={0.54}
           />
         </mesh>
-        {/* Brushed titanium architectural rim ring */}
-        <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <ringGeometry args={[6.12, 6.45, 64]} />
+        {/* Brushed Titanium Outer Rim Ring */}
+        <mesh position={[0, -0.008, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <ringGeometry args={[6.06, 6.40, 72]} />
           <meshStandardMaterial
             map={metalTex.map}
             roughnessMap={metalTex.roughnessMap}
             metalness={0.86}
-            roughness={0.28}
+            roughness={0.26}
           />
         </mesh>
-        {/* Subtle glowing mint perimeter light channel */}
-        <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[6.06, 6.11, 64]} />
-          <meshBasicMaterial color="#4EF2B8" transparent opacity={0.62} />
+        {/* Fine Recessed Mint Perimeter Light Channel */}
+        <mesh position={[0, 0.006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[6.02, 6.055, 72]} />
+          <meshBasicMaterial color="#4EF2B8" transparent opacity={0.52} />
         </mesh>
-        {/* Under-deck aerospace superstructure hull */}
+        {/* Aerospace Under-Deck Superstructure */}
         <mesh position={[0, -0.58, 0]}>
-          <cylinderGeometry args={[5.8, 3.6, 0.64, 32]} />
-          <meshStandardMaterial color="#0A1017" metalness={0.78} roughness={0.42} />
+          <cylinderGeometry args={[5.75, 3.4, 0.66, 48]} />
+          <meshStandardMaterial color="#0A1017" metalness={0.8} roughness={0.4} />
         </mesh>
       </group>
 
-      {/* Architectural Observatory Ribs & Overhead Light Canopies (depth & silhouette from every 360° angle) */}
-      {[-0.95, -0.42, 0.42, 0.95].map((ang, i) => {
-        const rx = Math.sin(ang) * 6.2;
-        const rz = -0.4 - Math.cos(ang) * 6.2;
-        return (
-          <group key={i} position={[rx, 0, rz]} rotation={[0, -ang, 0]}>
-            {/* Slanted brushed-titanium structural rib column */}
-            <mesh position={[0, 1.9, 0]} rotation={[0.16, 0, 0]} castShadow>
-              <boxGeometry args={[0.24, 3.9, 0.34]} />
-              <meshStandardMaterial
-                map={metalTex.map}
-                metalness={0.85}
-                roughness={0.3}
-                color="#202A36"
-              />
-            </mesh>
-            {/* Vertical subtle mint architectural light slit */}
-            <mesh position={[0, 1.9, 0.18]} rotation={[0.16, 0, 0]}>
-              <boxGeometry args={[0.03, 3.1, 0.015]} />
-              <meshBasicMaterial color="#4EF2B8" transparent opacity={0.75} />
-            </mesh>
-            {/* Upper curved cantilever rib arm */}
-            <mesh position={[0, 3.78, 0.72]} rotation={[1.22, 0, 0]} castShadow>
-              <boxGeometry args={[0.20, 1.9, 0.22]} />
-              <meshStandardMaterial color="#18212C" metalness={0.84} roughness={0.32} />
-            </mesh>
-          </group>
-        );
-      })}
+      {/* Graceful Sweeping Observatory Canopy Arches */}
+      <ObservatoryCanopyArches metalTex={metalTex} />
 
-      {/* Translucent Glass Safety Balustrade segments along rear observatory edge */}
-      {[-0.68, 0, 0.68].map((ang, i) => (
-        <mesh
-          key={i}
-          position={[Math.sin(ang) * 6.18, 0.52, -0.4 - Math.cos(ang) * 6.18]}
-          rotation={[0, -ang, 0]}
-        >
-          <boxGeometry args={[2.7, 0.92, 0.03]} />
-          <meshPhysicalMaterial
-            color="#A8DCF0"
-            transparent
-            opacity={0.14}
-            roughness={0.08}
-            metalness={0.1}
-            clearcoat={1}
-          />
-        </mesh>
-      ))}
-
-      {/* Glowing Skybridges linking Main Lab to Football, Gaming & Swimming Pods */}
+      {/* Architectural Skybridges (zero overlap, clean chamfered aluminum railings!) */}
       {walkways.map((w, idx) => (
         <group key={idx} position={w.pos} rotation={[0, w.rotY, 0]}>
-          <mesh receiveShadow>
-            <boxGeometry args={[w.len, 0.12, 1.15]} />
-            <meshStandardMaterial color="#121A24" metalness={0.78} roughness={0.36} />
+          <mesh receiveShadow castShadow>
+            <boxGeometry args={[w.len, 0.14, 1.25]} />
+            <meshStandardMaterial
+              map={metalTex.map}
+              color="#16202C"
+              metalness={0.8}
+              roughness={0.32}
+            />
           </mesh>
-          {/* Twin subtle LED guide rails */}
-          <mesh position={[0, 0.068, 0.52]}>
-            <boxGeometry args={[w.len, 0.018, 0.025]} />
-            <meshBasicMaterial color="#4EF2B8" transparent opacity={0.75} />
-          </mesh>
-          <mesh position={[0, 0.068, -0.52]}>
-            <boxGeometry args={[w.len, 0.018, 0.025]} />
-            <meshBasicMaterial color="#4EF2B8" transparent opacity={0.75} />
-          </mesh>
+          {/* Low smoked glass side curbs + slim mint guide rails */}
+          {[-0.58, 0.58].map((sz, j) => (
+            <group key={j} position={[0, 0.16, sz]}>
+              <mesh>
+                <boxGeometry args={[w.len, 0.22, 0.03]} />
+                <meshPhysicalMaterial
+                  color="#9BD8EA"
+                  transparent
+                  opacity={0.18}
+                  roughness={0.08}
+                  clearcoat={1}
+                />
+              </mesh>
+              <mesh position={[0, -0.085, 0]}>
+                <boxGeometry args={[w.len, 0.016, 0.04]} />
+                <meshBasicMaterial color="#4EF2B8" transparent opacity={0.62} />
+              </mesh>
+            </group>
+          ))}
         </group>
       ))}
 
-      {/* ═══════════════ HERO DEVELOPER WORKSTATION (behind hologram, z = -2.95) ═══════════════ */}
+      {/* ═══════════════ HERO DEVELOPER WORKSTATION (z = -2.95) ═══════════════ */}
       <group
         position={[0, 0, -2.95]}
         onClick={(e) => {
@@ -526,109 +558,111 @@ export function TechLab({ projects }: TechLabProps) {
           focusZone("projects", true);
         }}
       >
-        {/* Executive Carbon & Brushed Aluminum Desk */}
-        <mesh position={[0, 0.78, 0]} castShadow receiveShadow>
-          <boxGeometry args={[3.55, 0.065, 1.02]} />
+        {/* Executive Beveled Carbon-Slate & Aluminum Desk */}
+        <mesh position={[0, 0.79, 0]} castShadow receiveShadow>
+          <boxGeometry args={[3.72, 0.072, 1.08]} />
           <meshStandardMaterial
             map={metalTex.map}
             roughnessMap={metalTex.roughnessMap}
-            color="#151C25"
-            metalness={0.68}
-            roughness={0.34}
+            color="#18212C"
+            metalness={0.7}
+            roughness={0.32}
           />
         </mesh>
-        {/* Front glass inlay strip & ambient underglow */}
-        <mesh position={[0, 0.75, 0.50]}>
-          <boxGeometry args={[3.2, 0.015, 0.015]} />
-          <meshBasicMaterial color="#4EF2B8" />
+        {/* Brushed Aluminum Front Bevel Fascia + Ambient Light Line */}
+        <mesh position={[0, 0.79, 0.545]}>
+          <boxGeometry args={[3.72, 0.036, 0.012]} />
+          <meshStandardMaterial color="#2C3A4A" metalness={0.9} roughness={0.22} />
         </mesh>
-        {/* Sculpted angled brushed-aluminum desk legs */}
-        {[-1.56, 1.56].map((lx, i) => (
-          <group key={i} position={[lx, 0.38, 0]}>
+        <mesh position={[0, 0.752, 0.53]}>
+          <boxGeometry args={[3.3, 0.012, 0.012]} />
+          <meshBasicMaterial color="#4EF2B8" transparent opacity={0.78} />
+        </mesh>
+        {/* Cantilevered Brushed Aluminum A-Frame Legs */}
+        {[-1.62, 1.62].map((lx, i) => (
+          <group key={i} position={[lx, 0.39, 0]}>
             <mesh castShadow receiveShadow>
-              <boxGeometry args={[0.1, 0.76, 0.86]} />
-              <meshStandardMaterial color="#1C2531" metalness={0.86} roughness={0.26} />
+              <boxGeometry args={[0.11, 0.76, 0.88]} />
+              <meshStandardMaterial color="#1F2A38" metalness={0.86} roughness={0.25} />
             </mesh>
-            <mesh position={[0, -0.36, 0]}>
-              <boxGeometry args={[0.24, 0.04, 0.94]} />
-              <meshStandardMaterial color="#121820" metalness={0.88} roughness={0.24} />
+            <mesh position={[0, -0.37, 0]}>
+              <boxGeometry args={[0.26, 0.04, 0.98]} />
+              <meshStandardMaterial color="#141C25" metalness={0.88} roughness={0.24} />
             </mesh>
           </group>
         ))}
 
-        {/* Desk Mat */}
-        <mesh position={[-0.18, 0.816, 0.16]} receiveShadow>
-          <boxGeometry args={[1.15, 0.005, 0.46]} />
-          <meshStandardMaterial color="#0C1117" roughness={0.88} metalness={0.05} />
+        {/* Extended Acoustic Desk Mat */}
+        <mesh position={[-0.20, 0.83, 0.16]} receiveShadow>
+          <boxGeometry args={[1.22, 0.006, 0.48]} />
+          <meshStandardMaterial color="#0C1118" roughness={0.88} metalness={0.05} />
         </mesh>
 
-        {/* Mechanical Keyboard + Sculpted Ergonomic Mouse */}
-        <MechanicalKeyboard position={[-0.24, 0.822, 0.18]} />
-        <group position={[0.18, 0.825, 0.19]}>
-          <mesh scale={[0.036, 0.022, 0.062]} castShadow>
-            <sphereGeometry args={[1, 16, 12]} />
-            <meshStandardMaterial color="#161E27" roughness={0.4} metalness={0.35} />
+        {/* Mechanical Keyboard + Ergonomic Mouse */}
+        <MechanicalKeyboard position={[-0.26, 0.836, 0.18]} />
+        <group position={[0.18, 0.84, 0.19]}>
+          <mesh scale={[0.038, 0.023, 0.065]} castShadow>
+            <sphereGeometry args={[1, 18, 14]} />
+            <meshStandardMaterial color="#18212C" roughness={0.36} metalness={0.38} />
           </mesh>
-          {/* Scroll wheel mint accent */}
-          <mesh position={[0, 0.016, -0.02]}>
+          <mesh position={[0, 0.017, -0.02]}>
             <boxGeometry args={[0.008, 0.008, 0.018]} />
             <meshBasicMaterial color="#4EF2B8" />
           </mesh>
         </group>
 
-        {/* Triple Curved Developer Monitors on Articulated VESA Stand */}
-        <group position={[-0.18, 0.82, -0.28]}>
-          {/* Heavy aluminum central monitor spine */}
-          <mesh position={[0, 0.36, -0.08]} castShadow>
-            <cylinderGeometry args={[0.036, 0.045, 0.72, 16]} />
-            <meshStandardMaterial color="#212B38" metalness={0.88} roughness={0.22} />
+        {/* Triple Curved Developer Monitors on Heavy Articulated Aluminum Arm */}
+        <group position={[-0.2, 0.83, -0.28]}>
+          <mesh position={[0, 0.38, -0.08]} castShadow>
+            <cylinderGeometry args={[0.038, 0.048, 0.76, 16]} />
+            <meshStandardMaterial color="#253140" metalness={0.88} roughness={0.22} />
           </mesh>
-          {/* Center Ultrawide Curved Screen */}
-          <group position={[0, 0.56, 0.02]}>
-            <mesh position={[0, 0, -0.025]} castShadow>
-              <boxGeometry args={[1.48, 0.71, 0.032]} />
-              <meshStandardMaterial color="#111720" metalness={0.82} roughness={0.26} />
+          {/* Center Ultrawide */}
+          <group position={[0, 0.58, 0.02]}>
+            <mesh position={[0, 0, -0.026]} castShadow>
+              <boxGeometry args={[1.58, 0.77, 0.034]} />
+              <meshStandardMaterial color="#131B25" metalness={0.84} roughness={0.24} />
             </mesh>
             <mesh geometry={mainMonitorGeo}>
               <meshStandardMaterial
                 map={codeCenter}
                 emissiveMap={codeCenter}
                 emissive="#ffffff"
-                emissiveIntensity={0.82}
+                emissiveIntensity={0.78}
                 roughness={0.16}
                 metalness={0.08}
               />
             </mesh>
           </group>
-          {/* Left Angled Curved Screen */}
-          <group position={[-1.14, 0.54, 0.24]} rotation={[0, 0.42, 0]}>
-            <mesh position={[0, 0, -0.025]} castShadow>
-              <boxGeometry args={[0.97, 0.62, 0.03]} />
-              <meshStandardMaterial color="#111720" metalness={0.82} roughness={0.26} />
+          {/* Left Curved Monitor */}
+          <group position={[-1.22, 0.56, 0.25]} rotation={[0, 0.42, 0]}>
+            <mesh position={[0, 0, -0.024]} castShadow>
+              <boxGeometry args={[1.03, 0.66, 0.032]} />
+              <meshStandardMaterial color="#131B25" metalness={0.84} roughness={0.24} />
             </mesh>
             <mesh geometry={sideMonitorGeo}>
               <meshStandardMaterial
                 map={codeLeft}
                 emissiveMap={codeLeft}
                 emissive="#ffffff"
-                emissiveIntensity={0.78}
+                emissiveIntensity={0.74}
                 roughness={0.16}
                 metalness={0.08}
               />
             </mesh>
           </group>
-          {/* Right Angled Curved Screen */}
-          <group position={[1.14, 0.54, 0.24]} rotation={[0, -0.42, 0]}>
-            <mesh position={[0, 0, -0.025]} castShadow>
-              <boxGeometry args={[0.97, 0.62, 0.03]} />
-              <meshStandardMaterial color="#111720" metalness={0.82} roughness={0.26} />
+          {/* Right Curved Monitor */}
+          <group position={[1.22, 0.56, 0.25]} rotation={[0, -0.42, 0]}>
+            <mesh position={[0, 0, -0.024]} castShadow>
+              <boxGeometry args={[1.03, 0.66, 0.032]} />
+              <meshStandardMaterial color="#131B25" metalness={0.84} roughness={0.24} />
             </mesh>
             <mesh geometry={sideMonitorGeo}>
               <meshStandardMaterial
                 map={codeRight}
                 emissiveMap={codeRight}
                 emissive="#ffffff"
-                emissiveIntensity={0.78}
+                emissiveIntensity={0.74}
                 roughness={0.16}
                 metalness={0.08}
               />
@@ -636,8 +670,8 @@ export function TechLab({ projects }: TechLabProps) {
           </group>
         </group>
 
-        {/* Transparent Tempered-Glass High-Performance PC Tower on right end of desk */}
-        <TransparentPCTower position={[1.42, 0.815, -0.04]} />
+        {/* Transparent Tempered-Glass High-Performance PC Tower */}
+        <TransparentPCTower position={[1.48, 0.83, -0.02]} />
       </group>
 
       {/* ═══════════════ 6 INTERACTIVE GITHUB PROJECT TERMINALS ═══════════════ */}

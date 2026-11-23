@@ -3,17 +3,15 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import gsap from "gsap";
 import {
   skyDomeFragmentShader,
   skyDomeVertexShader,
   starfieldFragmentShader,
   starfieldVertexShader,
 } from "@/lib/glsl/skyShader";
-import { createMoonTextures } from "@/lib/textures";
+import { createGlowParticleTexture, createMoonTextures } from "@/lib/textures";
 import { useUniverseStore } from "@/store/useUniverseStore";
 
-/** Deterministic pseudo-random helper */
 function seededRand(seed: number) {
   let s = seed >>> 0;
   return () => {
@@ -22,35 +20,32 @@ function seededRand(seed: number) {
   };
 }
 
-/** 3D constellation star chains placed in the night hemisphere */
+/** 3D constellation star chains placed cleanly across the night sky dome */
 const CONSTELLATIONS: [number, number, number][][] = [
-  // Orion-inspired celestial figure
   [
-    [-38, 42, -72],
-    [-29, 34, -76],
-    [-25, 33, -78],
-    [-21, 32, -79],
-    [-16, 44, -74],
-    [-25, 33, -78],
-    [-32, 22, -77],
-    [-19, 21, -78],
+    [-40, 44, -76],
+    [-31, 35, -80],
+    [-27, 34, -82],
+    [-23, 33, -83],
+    [-17, 45, -78],
+    [-27, 34, -82],
+    [-34, 24, -81],
+    [-20, 23, -82],
   ],
-  // Cygnus / Cross constellation
   [
-    [34, 48, -68],
-    [40, 38, -70],
-    [46, 28, -72],
-    [40, 38, -70],
-    [29, 34, -74],
-    [52, 41, -66],
+    [34, 48, -74],
+    [40, 38, -76],
+    [46, 28, -78],
+    [40, 38, -76],
+    [29, 34, -80],
+    [52, 41, -72],
   ],
-  // Cassiopeia W-chain
   [
-    [-62, 36, -34],
-    [-55, 42, -38],
-    [-48, 37, -41],
-    [-42, 44, -44],
-    [-35, 38, -46],
+    [-64, 38, -36],
+    [-57, 44, -40],
+    [-50, 39, -43],
+    [-44, 46, -46],
+    [-37, 40, -48],
   ],
 ];
 
@@ -62,6 +57,14 @@ interface ShootingStarState {
   cooldown: number;
 }
 
+/**
+ * Living 3D Astronomical Sky Universe:
+ *  - Volumetric GPU ray-marched clouds & infinite below-deck sea of clouds (ZERO sphere blobs!)
+ *  - Detailed cratered Moon with bump relief framed cleanly over the observatory night skyline
+ *  - Blazing 3D Sun + corona arc rising during Day Mode
+ *  - Multi-layer twinkling starfield, constellations, and occasional shooting stars
+ *  - Smooth, frame-independent Day <-> Night transition that never stalls on any GPU
+ */
 export function SkyUniverse() {
   const theme = useUniverseStore((s) => s.theme);
   const quality = useUniverseStore((s) => s.quality);
@@ -69,10 +72,9 @@ export function SkyUniverse() {
   const setDayFactor = useUniverseStore((s) => s.setDayFactor);
   const { gl } = useThree();
 
-  const dayRef = useRef({ value: theme === "day" ? 1 : 0 });
+  const dayFactorRef = useRef(theme === "day" ? 1 : 0);
   const sunGroupRef = useRef<THREE.Group>(null);
   const moonGroupRef = useRef<THREE.Group>(null);
-  const cloudsGroupRef = useRef<THREE.Group>(null);
   const constellationsRef = useRef<THREE.Group>(null);
   const meteorRef = useRef<THREE.Mesh>(null);
   const dustRef = useRef<THREE.Points>(null);
@@ -82,31 +84,10 @@ export function SkyUniverse() {
     progress: 0,
     start: new THREE.Vector3(),
     dir: new THREE.Vector3(),
-    cooldown: 3.5,
+    cooldown: 4.0,
   });
 
-  // Smooth cinematic Day <-> Night transition via GSAP
-  useEffect(() => {
-    const target = theme === "day" ? 1 : 0;
-    if (reducedMotion) {
-      dayRef.current.value = target;
-      setDayFactor(target);
-      return;
-    }
-    const tween = gsap.to(dayRef.current, {
-      value: target,
-      duration: 2.4,
-      ease: "power2.inOut",
-      onUpdate: () => {
-        setDayFactor(dayRef.current.value);
-      },
-    });
-    return () => {
-      tween.kill();
-    };
-  }, [theme, reducedMotion, setDayFactor]);
-
-  // Sky Dome shader material
+  // Volumetric Sky + Ray-marched Clouds Dome material
   const skyMat = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -117,19 +98,20 @@ export function SkyUniverse() {
         uniforms: {
           uDayFactor: { value: theme === "day" ? 1 : 0 },
           uTime: { value: 0 },
-          uSunDir: { value: new THREE.Vector3(0.55, 0.45, -0.7).normalize() },
-          uMoonDir: { value: new THREE.Vector3(-0.48, 0.42, -0.77).normalize() },
+          uSunDir: { value: new THREE.Vector3(0.42, 0.36, -0.83).normalize() },
+          uMoonDir: { value: new THREE.Vector3(-0.34, 0.33, -0.88).normalize() },
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
-  // Detailed cratered Moon textures (disposed cleanly on unmount)
+  // High-res cratered Moon textures & soft circular bokeh dust sprite
   const moonTextures = useMemo(() => createMoonTextures(), []);
+  const dustSprite = useMemo(() => createGlowParticleTexture(), []);
 
-  // Multi-layer Starfield geometry + custom scintillation shader
-  const starCount = quality === "low" ? 1100 : quality === "medium" ? 2000 : 3000;
+  // Multi-layer Starfield
+  const starCount = quality === "low" ? 1400 : 2800;
   const { starGeo, starMat } = useMemo(() => {
     const rand = seededRand(90210);
     const positions = new Float32Array(starCount * 3);
@@ -140,22 +122,21 @@ export function SkyUniverse() {
       new THREE.Color("#EBF4FF"),
       new THREE.Color("#C7E2FF"),
       new THREE.Color("#FFF4DC"),
-      new THREE.Color("#9EF7DB"),
+      new THREE.Color("#A8F7DE"),
       new THREE.Color("#FFFFFF"),
     ];
 
     for (let i = 0; i < starCount; i++) {
-      // Distribute across upper + horizon celestial sphere at varying depth layers
       const u = rand();
       const v = rand();
       const theta = u * Math.PI * 2;
-      const phi = Math.acos(Math.max(-0.22, 1 - v * 1.18));
-      const r = 82 + rand() * 44;
+      const phi = Math.acos(Math.max(0.02, 1 - v * 0.98)); // keep stars cleanly above horizon
+      const r = 90 + rand() * 38;
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.cos(phi);
       positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
 
-      sizes[i] = rand() < 0.08 ? 2.4 + rand() * 2.2 : 0.8 + rand() * 1.3;
+      sizes[i] = rand() < 0.07 ? 2.1 + rand() * 1.9 : 0.75 + rand() * 1.15;
       phases[i] = rand();
       const c = palette[Math.floor(rand() * palette.length)];
       colors[i * 3] = c.r;
@@ -184,12 +165,12 @@ export function SkyUniverse() {
     return { starGeo: geo, starMat: mat };
   }, [starCount, gl]);
 
-  // Constellation line geometries
+  // Subtle Constellation Lines
   const constellationLines = useMemo(() => {
     const mat = new THREE.LineBasicMaterial({
       color: "#7CECD0",
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.18,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
@@ -201,78 +182,21 @@ export function SkyUniverse() {
     });
   }, []);
 
-  // Layered volumetric-style 3D cloud clusters (instanced puffs for low draw calls!)
-  const cloudClusterCount = quality === "low" ? 12 : 24;
-  const cloudClusters = useMemo(() => {
-    const rand = seededRand(55123);
-    const list: {
-      angle: number;
-      radius: number;
-      y: number;
-      speed: number;
-      scale: number;
-      puffs: { pos: [number, number, number]; s: [number, number, number] }[];
-    }[] = [];
-
-    for (let i = 0; i < cloudClusterCount; i++) {
-      const angle = (i / cloudClusterCount) * Math.PI * 2 + (rand() - 0.5) * 0.25;
-      const isHigh = i % 3 === 0;
-      const radius = isHigh ? 38 + rand() * 34 : 26 + rand() * 32;
-      const y = isHigh ? 14 + rand() * 14 : -5.5 - rand() * 5.5;
-      const puffCount = 4 + Math.floor(rand() * 3);
-      const puffs = Array.from({ length: puffCount }, (_, k) => ({
-        pos: [
-          (k - puffCount / 2) * (1.8 + rand() * 1.2),
-          (rand() - 0.35) * 1.1,
-          (rand() - 0.5) * 2.1,
-        ] as [number, number, number],
-        s: [
-          2.6 + rand() * 2.4,
-          1.2 + rand() * 1.0,
-          2.0 + rand() * 1.8,
-        ] as [number, number, number],
-      }));
-      list.push({
-        angle,
-        radius,
-        y,
-        speed: (0.004 + rand() * 0.008) * (isHigh ? 1.4 : 0.7),
-        scale: isHigh ? 1.05 : 1.55,
-        puffs,
-      });
-    }
-    return list;
-  }, [cloudClusterCount]);
-
-  const cloudMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color("#25374c"),
-        roughness: 0.96,
-        metalness: 0.0,
-        transparent: true,
-        opacity: 0.42,
-        depthWrite: false,
-      }),
-    []
-  );
-
-  // Subtle ambient energy dust motes drifting around the laboratory
+  // Delicate Circular Bokeh Ambient Motes
   const dustGeo = useMemo(() => {
     const rand = seededRand(7741);
-    const n = quality === "low" ? 120 : 280;
+    const n = quality === "low" ? 90 : 180;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      pos[i * 3] = (rand() - 0.5) * 24;
-      pos[i * 3 + 1] = 0.2 + rand() * 7.5;
-      pos[i * 3 + 2] = (rand() - 0.5) * 22;
+      pos[i * 3] = (rand() - 0.5) * 26;
+      pos[i * 3 + 1] = 0.4 + rand() * 7.5;
+      pos[i * 3 + 2] = (rand() - 0.5) * 24;
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     return g;
   }, [quality]);
 
-  // Clean GPU disposal on unmount
   useEffect(() => {
     return () => {
       skyMat.dispose();
@@ -280,100 +204,106 @@ export function SkyUniverse() {
       starMat.dispose();
       moonTextures.map.dispose();
       moonTextures.bumpMap.dispose();
-      cloudMat.dispose();
+      dustSprite.dispose();
       dustGeo.dispose();
       constellationLines.forEach((l) => {
         l.geometry.dispose();
         (l.material as THREE.Material).dispose();
       });
     };
-  }, [skyMat, starGeo, starMat, moonTextures, cloudMat, dustGeo, constellationLines]);
+  }, [skyMat, starGeo, starMat, moonTextures, dustSprite, dustGeo, constellationLines]);
 
-  const tmpColorA = useMemo(() => new THREE.Color("#1f3045"), []);
-  const tmpColorB = useMemo(() => new THREE.Color("#f0f6fc"), []);
-  const tmpEmissiveA = useMemo(() => new THREE.Color("#0e1e30"), []);
-  const tmpEmissiveB = useMemo(() => new THREE.Color("#a8c8e8"), []);
+  const sunVec = useMemo(() => new THREE.Vector3(), []);
+  const moonVec = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, rawDelta) => {
-    const delta = Math.min(rawDelta, 0.05);
+    const dt = Math.min(rawDelta, 0.08);
     const t = state.clock.elapsedTime;
-    const d = dayRef.current.value;
+    const targetDay = theme === "day" ? 1 : 0;
 
-    // Celestial arc positions: Sun rises high as d -> 1, Moon descends below horizon
-    const sunElev = THREE.MathUtils.lerp(-0.22, 0.54, d);
-    const moonElev = THREE.MathUtils.lerp(0.46, -0.28, d);
-    const sunDir = new THREE.Vector3(0.56, sunElev, -0.72).normalize();
-    const moonDir = new THREE.Vector3(-0.46, moonElev, -0.78).normalize();
+    // Frame-rate independent smooth cinematic Day <-> Night transition (~2.0s)
+    if (reducedMotion) {
+      dayFactorRef.current = targetDay;
+    } else if (Math.abs(dayFactorRef.current - targetDay) > 0.0005) {
+      const step = dt * 0.55;
+      if (dayFactorRef.current < targetDay) {
+        dayFactorRef.current = Math.min(targetDay, dayFactorRef.current + step);
+      } else {
+        dayFactorRef.current = Math.max(targetDay, dayFactorRef.current - step);
+      }
+    } else {
+      dayFactorRef.current = targetDay;
+    }
+
+    // Smoothstep S-curve for filmic sunrise/moonrise pacing
+    const rawD = dayFactorRef.current;
+    const d = rawD * rawD * (3 - 2 * rawD);
+    if (Math.abs(useUniverseStore.getState().dayFactor - d) > 0.002) {
+      setDayFactor(d);
+    }
+
+    // Hero framing: Moon sits gracefully upper-left over rear skyline at Night; Sun arcs upper-right in Day
+    const sunElev = THREE.MathUtils.lerp(-0.22, 0.38, d);
+    const moonElev = THREE.MathUtils.lerp(0.34, -0.26, d);
+    sunVec.set(0.42, sunElev, -0.83).normalize();
+    moonVec.set(-0.34, moonElev, -0.88).normalize();
 
     skyMat.uniforms.uDayFactor.value = d;
     skyMat.uniforms.uTime.value = t;
-    skyMat.uniforms.uSunDir.value.copy(sunDir);
-    skyMat.uniforms.uMoonDir.value.copy(moonDir);
+    skyMat.uniforms.uSunDir.value.copy(sunVec);
+    skyMat.uniforms.uMoonDir.value.copy(moonVec);
 
-    // Stars & constellations fade out smoothly in day mode
+    // Stars & constellations fade seamlessly at sunrise
     starMat.uniforms.uTime.value = t;
     starMat.uniforms.uOpacity.value = Math.max(0, 1 - d * 1.45);
     if (constellationsRef.current) {
-      constellationsRef.current.visible = d < 0.72;
+      constellationsRef.current.visible = d < 0.7;
       const mat = constellationLines[0]?.material as THREE.LineBasicMaterial | undefined;
-      if (mat) mat.opacity = (1 - Math.min(1, d * 1.4)) * 0.24;
+      if (mat) mat.opacity = (1 - Math.min(1, d * 1.45)) * 0.2;
     }
 
-    // Position 3D Sun
     if (sunGroupRef.current) {
-      sunGroupRef.current.position.copy(sunDir).multiplyScalar(78);
-      sunGroupRef.current.visible = d > 0.06;
-      const s = 0.7 + d * 0.45;
-      sunGroupRef.current.scale.setScalar(s);
+      sunGroupRef.current.position.copy(sunVec).multiplyScalar(82);
+      sunGroupRef.current.visible = d > 0.08;
+      sunGroupRef.current.scale.setScalar(0.75 + d * 0.4);
     }
 
-    // Position & slowly rotate detailed 3D Moon
     if (moonGroupRef.current) {
-      moonGroupRef.current.position.copy(moonDir).multiplyScalar(72);
+      moonGroupRef.current.position.copy(moonVec).multiplyScalar(76);
       moonGroupRef.current.visible = d < 0.92;
-      moonGroupRef.current.rotation.y = t * 0.015;
+      moonGroupRef.current.rotation.y = 0.65 + t * 0.012;
     }
 
-    // Animate volumetric cloud colors, opacity and slow orbital drift
-    cloudMat.color.copy(tmpColorA).lerp(tmpColorB, d);
-    cloudMat.emissive.copy(tmpEmissiveA).lerp(tmpEmissiveB, d);
-    cloudMat.emissiveIntensity = THREE.MathUtils.lerp(0.28, 0.24, d);
-    cloudMat.opacity = THREE.MathUtils.lerp(0.32, 0.68, d);
-    if (cloudsGroupRef.current && !reducedMotion) {
-      cloudsGroupRef.current.rotation.y = t * 0.008;
-    }
-
-    // Gentle drift of ambient energy dust motes
     if (dustRef.current && !reducedMotion) {
-      dustRef.current.rotation.y = t * 0.012;
-      dustRef.current.position.y = Math.sin(t * 0.35) * 0.18;
+      dustRef.current.rotation.y = t * 0.01;
+      (dustRef.current.material as THREE.PointsMaterial).opacity = THREE.MathUtils.lerp(0.42, 0.16, d);
     }
 
-    // Shooting star animation during night mode
+    // Occasional graceful shooting star across the night dome
     const m = meteorState.current;
     if (meteorRef.current) {
-      if (d > 0.55 || reducedMotion) {
+      if (d > 0.5 || reducedMotion) {
         meteorRef.current.visible = false;
       } else if (!m.active) {
-        m.cooldown -= delta;
+        m.cooldown -= dt;
         if (m.cooldown <= 0) {
           m.active = true;
           m.progress = 0;
           const side = Math.random() > 0.5 ? 1 : -1;
-          m.start.set(side * (20 + Math.random() * 35), 32 + Math.random() * 20, -55 - Math.random() * 25);
-          m.dir.set(-side * (0.75 + Math.random() * 0.3), -0.45 - Math.random() * 0.2, 0.1).normalize();
+          m.start.set(side * (24 + Math.random() * 32), 34 + Math.random() * 18, -68 - Math.random() * 18);
+          m.dir.set(-side * (0.78 + Math.random() * 0.25), -0.42 - Math.random() * 0.18, 0.08).normalize();
           meteorRef.current.visible = true;
         }
       } else {
-        m.progress += delta * 1.45;
-        const pos = m.start.clone().addScaledVector(m.dir, m.progress * 55);
+        m.progress += dt * 1.5;
+        const pos = m.start.clone().addScaledVector(m.dir, m.progress * 56);
         meteorRef.current.position.copy(pos);
         meteorRef.current.lookAt(pos.clone().add(m.dir));
         const fade = Math.sin(Math.min(1, m.progress) * Math.PI);
-        (meteorRef.current.material as THREE.MeshBasicMaterial).opacity = fade * (1 - d * 1.5);
+        (meteorRef.current.material as THREE.MeshBasicMaterial).opacity = fade * (1 - d * 1.6);
         if (m.progress >= 1) {
           m.active = false;
-          m.cooldown = 4.5 + Math.random() * 6.5;
+          m.cooldown = 5.5 + Math.random() * 6.5;
           meteorRef.current.visible = false;
         }
       }
@@ -382,15 +312,15 @@ export function SkyUniverse() {
 
   return (
     <group name="SkyUniverse">
-      {/* Atmospheric Day/Night Sky Dome */}
+      {/* Volumetric Atmospheric Sky + GPU Ray-Marched Cumulus Clouds + Cloud Sea */}
       <mesh material={skyMat} renderOrder={-10}>
-        <sphereGeometry args={[145, 48, 32]} />
+        <sphereGeometry args={[150, 64, 40]} />
       </mesh>
 
-      {/* Multi-layer Scintillating Starfield */}
+      {/* Multi-Layer Scintillating Starfield */}
       <points geometry={starGeo} material={starMat} frustumCulled={false} />
 
-      {/* Subtle Night Constellations */}
+      {/* Constellations */}
       <group ref={constellationsRef}>
         {constellationLines.map((lineObj, i) => (
           <primitive key={i} object={lineObj} />
@@ -399,9 +329,9 @@ export function SkyUniverse() {
 
       {/* Shooting Star Streak */}
       <mesh ref={meteorRef} visible={false}>
-        <cylinderGeometry args={[0.02, 0.14, 7.5, 6]} />
+        <cylinderGeometry args={[0.015, 0.11, 6.8, 6]} />
         <meshBasicMaterial
-          color="#D4FFF0"
+          color="#D8FFF2"
           transparent
           opacity={0}
           blending={THREE.AdditiveBlending}
@@ -409,28 +339,27 @@ export function SkyUniverse() {
         />
       </mesh>
 
-      {/* Detailed 3D Cratered Moon (Night) */}
+      {/* Detailed 3D Cratered Moon with Realistic Maria & Bump Relief */}
       <group ref={moonGroupRef}>
         <mesh>
-          <sphereGeometry args={[6.2, 48, 48]} />
+          <sphereGeometry args={[5.8, 56, 56]} />
           <meshStandardMaterial
             map={moonTextures.map}
             bumpMap={moonTextures.bumpMap}
-            bumpScale={0.22}
+            bumpScale={0.28}
             roughness={0.92}
             metalness={0.02}
-            emissive="#87A6C4"
+            emissive="#9BB4CE"
             emissiveMap={moonTextures.map}
-            emissiveIntensity={0.42}
+            emissiveIntensity={0.48}
           />
         </mesh>
-        {/* Soft Lunar Atmospheric Halo */}
         <mesh>
-          <sphereGeometry args={[7.4, 24, 24]} />
+          <sphereGeometry args={[6.9, 28, 28]} />
           <meshBasicMaterial
             color="#9EC8EB"
             transparent
-            opacity={0.11}
+            opacity={0.1}
             side={THREE.BackSide}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
@@ -438,26 +367,26 @@ export function SkyUniverse() {
         </mesh>
       </group>
 
-      {/* Blazing 3D Sun + Corona (Day) */}
+      {/* Blazing 3D Sun + Corona Halo (Day Mode) */}
       <group ref={sunGroupRef} visible={false}>
         <mesh>
-          <sphereGeometry args={[5.4, 32, 32]} />
-          <meshBasicMaterial color="#FFF6DC" />
+          <sphereGeometry args={[4.8, 36, 36]} />
+          <meshBasicMaterial color="#FFF7E2" />
         </mesh>
         <mesh>
-          <sphereGeometry args={[8.5, 24, 24]} />
+          <sphereGeometry args={[7.8, 28, 28]} />
           <meshBasicMaterial
-            color="#FFE29E"
+            color="#FFE5A8"
             transparent
-            opacity={0.25}
+            opacity={0.26}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
         </mesh>
         <mesh>
-          <sphereGeometry args={[14.0, 24, 24]} />
+          <sphereGeometry args={[13.2, 24, 24]} />
           <meshBasicMaterial
-            color="#FFD080"
+            color="#FFD286"
             transparent
             opacity={0.09}
             blending={THREE.AdditiveBlending}
@@ -466,31 +395,15 @@ export function SkyUniverse() {
         </mesh>
       </group>
 
-      {/* Layered Volumetric 3D Cloud Sea & Sky Clouds */}
-      <group ref={cloudsGroupRef}>
-        {cloudClusters.map((c, idx) => (
-          <group
-            key={idx}
-            position={[Math.cos(c.angle) * c.radius, c.y, Math.sin(c.angle) * c.radius]}
-            rotation={[0, -c.angle + Math.PI / 2, 0]}
-            scale={c.scale}
-          >
-            {c.puffs.map((p, j) => (
-              <mesh key={j} position={p.pos} scale={p.s} material={cloudMat}>
-                <icosahedronGeometry args={[1, 2]} />
-              </mesh>
-            ))}
-          </group>
-        ))}
-      </group>
-
-      {/* Ambient Floating Atmospheric Particles */}
+      {/* Soft Circular Bokeh Ambient Dust Motes */}
       <points ref={dustRef} geometry={dustGeo}>
         <pointsMaterial
-          color="#6DF5C7"
-          size={0.055}
+          map={dustSprite}
+          color="#7DF7CE"
+          size={0.14}
           transparent
-          opacity={0.45}
+          opacity={0.42}
+          alphaTest={0.02}
           sizeAttenuation
           depthWrite={false}
           blending={THREE.AdditiveBlending}

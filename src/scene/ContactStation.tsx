@@ -1,16 +1,69 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useUniverseStore } from "@/store/useUniverseStore";
 
+/** Generates a crisp holographic comms screen canvas texture for the Contact Monolith */
+function createCommsScreenTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 640;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#060B11";
+  ctx.fillRect(0, 0, 512, 640);
+  ctx.strokeStyle = "rgba(78, 242, 184, 0.25)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(18, 18, 476, 604);
+
+  ctx.fillStyle = "#4EF2B8";
+  ctx.font = "600 18px monospace";
+  ctx.fillText("COMMS // UPLINK ACTIVE", 40, 68);
+
+  ctx.fillStyle = "#ECF3F7";
+  ctx.font = "700 36px sans-serif";
+  ctx.fillText("CONTACT STATION", 40, 122);
+
+  ctx.fillStyle = "#9FB0BE";
+  ctx.font = "500 18px monospace";
+  ctx.fillText("CHEIKH THIAM · C0D3R-CHEIKH06", 40, 158);
+
+  const channels = [
+    ["WHATSAPP", "+221 77 535 44 23", "#4EF2B8"],
+    ["GITHUB", "github.com/c0d3r-cheikh06", "#ECF3F7"],
+    ["INSTAGRAM", "@_xtypx01_", "#38BDF8"],
+    ["EMAIL SLOT", "CONFIGURABLE CHANNEL", "#9FB0BE"],
+  ];
+  channels.forEach(([title, val, col], idx) => {
+    const y = 212 + idx * 86;
+    ctx.fillStyle = "rgba(18, 28, 40, 0.88)";
+    ctx.fillRect(40, y, 432, 68);
+    ctx.fillStyle = col;
+    ctx.fillRect(40, y, 4, 68);
+    ctx.font = "600 15px monospace";
+    ctx.fillText(title, 60, y + 27);
+    ctx.fillStyle = "#ECF3F7";
+    ctx.font = "500 19px monospace";
+    ctx.fillText(val, 60, y + 52);
+  });
+
+  ctx.fillStyle = "#4EF2B8";
+  ctx.font = "600 15px monospace";
+  ctx.fillText("[ CLICK TO OPEN CHANNELS ]", 118, 592);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /**
- * Holographic Communications Station positioned on the Front-Left Deck (-3.6, 0, 3.2):
- *  - Sculpted aluminum comms console with tilted glass display
- *  - Rotating holographic signal transmitter beacon + pulsing orbital rings
- *  - Click opens the interactive Contact Station overlay (WhatsApp, Instagram, GitHub, Email slot)
+ * Architectural Holographic Communications Monolith (Front-Left Deck -3.6, 0, 3.2):
+ *  - Brushed titanium & glass freestanding comms kiosk (zero clipping arcs!)
+ *  - Crisp high-DPI contact channels screen + elevated rotating signal transmitter
  */
 export function ContactStation() {
   const focusZone = useUniverseStore((s) => s.focusZone);
@@ -19,7 +72,11 @@ export function ContactStation() {
 
   const [hovered, setHovered] = useState(false);
   const beaconRef = useRef<THREE.Group>(null);
-  const pulseRingRef = useRef<THREE.Mesh>(null);
+  const screenTex = useMemo(() => createCommsScreenTexture(), []);
+
+  useEffect(() => {
+    return () => screenTex.dispose();
+  }, [screenTex]);
 
   useEffect(() => {
     document.body.style.cursor = hovered ? "pointer" : "auto";
@@ -29,25 +86,18 @@ export function ContactStation() {
   }, [hovered]);
 
   useFrame((state, rawDelta) => {
-    if (reducedMotion) return;
+    if (reducedMotion || !beaconRef.current) return;
     const d = Math.min(rawDelta, 0.05);
     const t = state.clock.elapsedTime;
-    if (beaconRef.current) {
-      beaconRef.current.rotation.y += d * 0.75;
-      beaconRef.current.position.y = 1.56 + Math.sin(t * 2.1) * 0.05;
-    }
-    if (pulseRingRef.current) {
-      const p = (t * 0.45) % 1;
-      pulseRingRef.current.scale.setScalar(0.5 + p * 1.4);
-      (pulseRingRef.current.material as THREE.MeshBasicMaterial).opacity = (1 - p) * 0.55;
-    }
+    beaconRef.current.rotation.y += d * 0.7;
+    beaconRef.current.position.y = 2.02 + Math.sin(t * 2.0) * 0.035;
   });
 
   return (
     <group
       name="ContactStation"
       position={[-3.6, 0, 3.2]}
-      rotation={[0, 0.75, 0]}
+      rotation={[0, 0.78, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();
         setHovered(true);
@@ -61,72 +111,68 @@ export function ContactStation() {
         focusZone("contact", true);
       }}
     >
-      {/* Brushed Titanium Pedestal Base */}
-      <mesh position={[0, 0.07, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[0.58, 0.68, 0.14, 32]} />
-        <meshStandardMaterial color="#141C26" metalness={0.86} roughness={0.28} />
+      {/* Weighted Brushed-Titanium Circular Base */}
+      <mesh position={[0, 0.06, 0]} receiveShadow castShadow>
+        <cylinderGeometry args={[0.56, 0.66, 0.12, 36]} />
+        <meshStandardMaterial color="#151E2A" metalness={0.86} roughness={0.26} />
       </mesh>
-      {/* Sculpted Angled Console Column */}
-      <mesh position={[0, 0.58, -0.06]} rotation={[0.14, 0, 0]} castShadow>
-        <boxGeometry args={[0.38, 0.96, 0.24]} />
-        <meshStandardMaterial color="#1B2532" metalness={0.84} roughness={0.28} />
-      </mesh>
-      {/* Tilted Holographic Glass Console Deck */}
-      <mesh position={[0, 1.04, 0.08]} rotation={[-0.48, 0, 0]} castShadow>
-        <boxGeometry args={[0.92, 0.04, 0.48]} />
-        <meshPhysicalMaterial
-          color="#0F2626"
-          emissive="#4EF2B8"
-          emissiveIntensity={hovered ? 0.42 : 0.2}
-          roughness={0.14}
-          metalness={0.35}
-          clearcoat={1}
-        />
-      </mesh>
-      {/* Console Rim Light */}
-      <mesh position={[0, 1.06, 0.28]} rotation={[-0.48, 0, 0]}>
-        <boxGeometry args={[0.84, 0.014, 0.014]} />
-        <meshBasicMaterial color={hovered ? "#ECF3F7" : "#4EF2B8"} />
+      <mesh position={[0, 0.125, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.48, 0.52, 36]} />
+        <meshBasicMaterial color={hovered ? "#ECF3F7" : "#4EF2B8"} transparent opacity={0.75} />
       </mesh>
 
-      {/* Floating Holographic Comms Beacon */}
-      <group ref={beaconRef} position={[0, 1.56, 0]}>
+      {/* Twin Vertical Brushed-Aluminum Support Stanchions */}
+      {[-0.36, 0.36].map((x, i) => (
+        <mesh key={i} position={[x, 0.92, -0.02]} castShadow>
+          <boxGeometry args={[0.055, 1.66, 0.09]} />
+          <meshStandardMaterial color="#1E2937" metalness={0.88} roughness={0.24} />
+        </mesh>
+      ))}
+      {/* Top & Bottom Crossbeams */}
+      <mesh position={[0, 1.74, -0.02]} castShadow>
+        <boxGeometry args={[0.82, 0.05, 0.1]} />
+        <meshStandardMaterial color="#233040" metalness={0.88} roughness={0.22} />
+      </mesh>
+
+      {/* Frameless Glass Holographic Comms Panel */}
+      <mesh position={[0, 1.12, 0.02]} castShadow>
+        <boxGeometry args={[0.74, 0.96, 0.028]} />
+        <meshStandardMaterial color="#0F1722" metalness={0.78} roughness={0.26} />
+      </mesh>
+      <mesh position={[0, 1.12, 0.038]}>
+        <planeGeometry args={[0.68, 0.88]} />
+        <meshStandardMaterial
+          map={screenTex}
+          emissiveMap={screenTex}
+          emissive="#ffffff"
+          emissiveIntensity={hovered ? 0.95 : 0.68}
+          roughness={0.14}
+          metalness={0.08}
+        />
+      </mesh>
+
+      {/* Clean Elevated Orbital Signal Beacon above Monolith */}
+      <group ref={beaconRef} position={[0, 2.02, 0]}>
         <mesh>
-          <icosahedronGeometry args={[0.18, 0]} />
+          <octahedronGeometry args={[0.11, 0]} />
           <meshStandardMaterial
             color="#4EF2B8"
             emissive="#4EF2B8"
-            emissiveIntensity={hovered ? 1.4 : 0.8}
-            wireframe
+            emissiveIntensity={hovered ? 1.2 : 0.65}
+            metalness={0.5}
+            roughness={0.2}
           />
         </mesh>
-        <mesh rotation={[Math.PI / 3, 0, 0]}>
-          <torusGeometry args={[0.32, 0.01, 10, 40]} />
-          <meshBasicMaterial color="#9BFFDF" transparent opacity={0.8} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 3, Math.PI / 4, 0]}>
-          <torusGeometry args={[0.42, 0.008, 10, 40]} />
-          <meshBasicMaterial color="#38BDF8" transparent opacity={0.55} />
+        <mesh rotation={[Math.PI / 2.6, 0, 0]}>
+          <torusGeometry args={[0.21, 0.008, 10, 36]} />
+          <meshBasicMaterial color="#9BFFDF" transparent opacity={0.75} />
         </mesh>
       </group>
 
-      {/* Expanding Signal Pulse Ring */}
-      <mesh ref={pulseRingRef} position={[0, 1.56, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.38, 0.41, 36]} />
-        <meshBasicMaterial
-          color="#4EF2B8"
-          transparent
-          opacity={0.4}
-          side={THREE.DoubleSide}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
-
       {phase === "active" && hovered && (
-        <Html position={[0, 2.22, 0]} center distanceFactor={6.5} style={{ pointerEvents: "none" }}>
+        <Html position={[0, 2.42, 0]} center distanceFactor={6.5} style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded border border-[#4EF2B8]/40 bg-[#070C12]/90 px-2.5 py-1 font-mono text-[10px] text-[#ECF3F7] backdrop-blur-md">
-            <span className="text-[#4EF2B8]">COMMS //</span> CONTACT STATION
+            <span className="text-[#4EF2B8]">COMMS {"//"}</span> CONTACT STATION
           </div>
         </Html>
       )}

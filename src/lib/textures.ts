@@ -36,6 +36,22 @@ function toTexture(
   return tex;
 }
 
+/** Soft circular glowing bokeh particle sprite (eliminates ugly square WebGL point primitives!) */
+export function createGlowParticleTexture() {
+  const { canvas, ctx } = makeCanvas(64, 64);
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0.0, "rgba(255, 255, 255, 1.0)");
+  g.addColorStop(0.22, "rgba(205, 255, 238, 0.92)");
+  g.addColorStop(0.55, "rgba(78, 242, 184, 0.32)");
+  g.addColorStop(1.0, "rgba(78, 242, 184, 0.0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** Brushed dark titanium / aluminum PBR texture set */
 export function createBrushedMetalTextures(repeat: [number, number] = [2, 2]) {
   const { canvas, ctx } = makeCanvas(512, 512);
