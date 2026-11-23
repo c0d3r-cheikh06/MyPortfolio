@@ -51,7 +51,7 @@ export function UniverseCanvas({ projects }: UniverseCanvasProps) {
           antialias: quality !== "low",
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.04,
+          toneMappingExposure: 1.06,
         }}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", (e) => {
@@ -64,26 +64,27 @@ export function UniverseCanvas({ projects }: UniverseCanvasProps) {
         <LightingRig />
         <CameraRig />
 
+        <TechLab projects={projects} />
+        <SkillsUniverse />
+        <ContactStation />
+        <FootballArena />
+        <GamingPod />
+        <SwimmingPod />
+
         <Suspense fallback={null}>
           <HologramAvatar />
-          <TechLab projects={projects} />
-          <SkillsUniverse />
-          <ContactStation />
-          <FootballArena />
-          <GamingPod />
-          <SwimmingPod />
         </Suspense>
 
         {/* Subtle photographic selective Bloom (only true emissive highlights, never washes out the face!) */}
         {quality !== "low" && (
           <EffectComposer multisampling={quality === "high" ? 4 : 0}>
             <Bloom
-              intensity={0.26}
-              luminanceThreshold={0.94}
+              intensity={0.24}
+              luminanceThreshold={0.96}
               luminanceSmoothing={0.24}
               mipmapBlur
             />
-            <Vignette eskil={false} offset={0.28} darkness={0.42} />
+            <Vignette eskil={false} offset={0.28} darkness={0.34} />
           </EffectComposer>
         )}
       </Canvas>

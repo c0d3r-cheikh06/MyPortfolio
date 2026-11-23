@@ -5,7 +5,14 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { createHologramMaterial } from "@/lib/glsl/hologramShader";
-import { holoRingFragmentShader, holoRingVertexShader } from "@/lib/glsl/energyShader";
+import {
+  holoRingFragmentShader,
+  holoRingVertexShader,
+  laserBeamFragmentShader,
+  laserBeamVertexShader,
+  projectionConeFragmentShader,
+  projectionConeVertexShader,
+} from "@/lib/glsl/energyShader";
 import { createGlowParticleTexture } from "@/lib/textures";
 import { useUniverseStore } from "@/store/useUniverseStore";
 
@@ -30,6 +37,8 @@ const PART_INDEX: Record<string, number> = {
   Zipper: 5,
 };
 
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
 const smooth01 = (t: number) => {
   const x = Math.max(0, Math.min(1, t));
   return x * x * (3 - 2 * x);
@@ -38,21 +47,20 @@ const rangeProgress = (t: number, a: number, b: number) => smooth01((t - a) / (b
 
 /**
  * Centerpiece Studio 3D Hologram of Cheikh Thiam:
- *  - Loads our MakeHuman CC0 studio anatomical bust (`cheikh-avatar.glb`, 2.04 MB)
- *  - 4 converged precision emitter laser beams trace the active build height upward
- *    as quantum particles coalesce and the real sculpted 3D human bust materializes
- *  - Uses real clamped frame progression (never stalls or remounts on quality shifts!)
- *  - Hover enhances Fresnel edges & precision scan contours; Click focuses eye-level ID framing
+ *  - Refined MakeHuman CC0 studio anatomical bust with sculpted coily crown & Float32 albedo
+ *  - 4 articulated emitter turrets projecting volumetric 3D GLSL laser beams + impact flares
+ *  - Soft rising holographic projection light column + coalescing quantum bokeh particles
+ *  - Full 9-phase cinematic reconstruction sequence settling into a crystal-clear human hologram
  */
 export function HologramAvatar() {
   const phase = useUniverseStore((s) => s.phase);
   const activeZone = useUniverseStore((s) => s.activeZone);
+  const activePanel = useUniverseStore((s) => s.activePanel);
   const reducedMotion = useUniverseStore((s) => s.reducedMotion);
   const replayCount = useUniverseStore((s) => s.hologramReplayCount);
   const focusZone = useUniverseStore((s) => s.focusZone);
   const setHologramStatus = useUniverseStore((s) => s.setHologramStatus);
 
-  // Always load our single fast 2.04MB studio bust -> zero Suspense remount flicker!
   const gltf = useGLTF("/models/cheikh-avatar.glb");
 
   const [strokesData, setStrokesData] = useState<StrokesData | null>(null);
@@ -61,11 +69,20 @@ export function HologramAvatar() {
   const bustGroupRef = useRef<THREE.Group>(null);
   const scanRingRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<THREE.Points>(null);
-  const laserLinesRef = useRef<THREE.LineSegments>(null);
+  const beamRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const turretHeadRefs = useRef<(THREE.Group | null)[]>([]);
+  const muzzleFlareRefs = useRef<(THREE.Sprite | null)[]>([]);
+  const impactFlareRefs = useRef<(THREE.Sprite | null)[]>([]);
   const hoverSmoothRef = useRef(0);
   const buildClockRef = useRef(0);
   const lastStageRef = useRef("");
   const lastUiReportRef = useRef(0);
+
+  // Scratch vectors to avoid per-frame GC allocations
+  const scratchStart = useMemo(() => new THREE.Vector3(), []);
+  const scratchEnd = useMemo(() => new THREE.Vector3(), []);
+  const scratchMid = useMemo(() => new THREE.Vector3(), []);
+  const scratchDir = useMemo(() => new THREE.Vector3(), []);
 
   useEffect(() => {
     let active = true;
@@ -80,11 +97,10 @@ export function HologramAvatar() {
     };
   }, []);
 
-  // Reset build timer cleanly whenever entering active mode or user clicks Replay Laser
   useEffect(() => {
     if (reducedMotion) {
       buildClockRef.current = 10;
-      setHologramStatus(1, "HOLOGRAM LOCKED");
+      setHologramStatus(1, "09 · HOLOGRAM LOCKED");
       return;
     }
     if (phase === "entering" || phase === "active") {
@@ -117,10 +133,9 @@ export function HologramAvatar() {
     return { clonedScene: root, partMaterials: mats };
   }, [gltf.scene]);
 
-  // Soft circular glowing bokeh texture for particles (zero square points!)
   const particleSprite = useMemo(() => createGlowParticleTexture(), []);
 
-  // Precision anatomical contour slices from the real MakeHuman bust
+  // Anatomical contour slices (only illuminated around active laser scan front!)
   const strokeLines = useMemo(() => {
     if (!strokesData) return [];
     return strokesData.strokes.map((s) => {
@@ -134,18 +149,18 @@ export function HologramAvatar() {
       avgY /= Math.max(1, s.p.length / 3);
       const geo = new THREE.BufferGeometry().setFromPoints(pts);
       const mat = new THREE.LineBasicMaterial({
-        color: avgY > -0.14 ? "#A6FFE4" : "#4EF2B8",
+        color: avgY > -0.14 ? "#B4FFE9" : "#4EF2B8",
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
-      return { line: new THREE.Line(geo, mat), avgY, totalPoints: pts.length };
+      return { line: new THREE.Line(geo, mat), avgY };
     });
   }, [strokesData]);
 
-  // Coalescing quantum reconstruction particles sampled directly from the sculpted bust surface
-  const particleCount = 640;
+  // Coalescing quantum particles sampled directly from the sculpted bust surface
+  const particleCount = 820;
   const particleData = useMemo(() => {
     const start = new Float32Array(particleCount * 3);
     const target = new Float32Array(particleCount * 3);
@@ -156,7 +171,7 @@ export function HologramAvatar() {
     clonedScene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {
         const pos = (obj as THREE.Mesh).geometry.attributes.position;
-        const step = Math.max(1, Math.floor(pos.count / 180));
+        const step = Math.max(1, Math.floor(pos.count / 240));
         for (let i = 0; i < pos.count; i += step) {
           allVerts.push(pos.getX(i), pos.getY(i), pos.getZ(i));
         }
@@ -171,9 +186,9 @@ export function HologramAvatar() {
       target[i * 3 + 2] = allVerts[idx + 2] ?? 0;
 
       const ang = i * 2.39996;
-      const rad = 0.36 + ((i * 53) % 100) / 160;
+      const rad = 0.22 + ((i * 53) % 100) / 220;
       start[i * 3] = Math.cos(ang) * rad;
-      start[i * 3 + 1] = -0.54 + ((i * 29) % 100) / 135;
+      start[i * 3 + 1] = -0.58 + ((i * 29) % 100) / 145;
       start[i * 3 + 2] = Math.sin(ang) * rad;
 
       current[i * 3] = start[i * 3];
@@ -192,15 +207,44 @@ export function HologramAvatar() {
     return { geo, start, target };
   }, [clonedScene]);
 
-  // 4 Precision Converging Laser Beams (from the 4 optical emitter turrets -> active scan ring!)
-  // Crisp thin laser rays instead of a blinding white cylinder!
-  const laserGeo = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    // 4 outer beams + 4 inner white core beams = 8 line segments = 16 vertices
-    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(16 * 3), 3));
-    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(16 * 3), 3));
-    return geo;
-  }, []);
+  // Volumetric laser cylinder geometry & shader
+  const laserCylGeo = useMemo(() => new THREE.CylinderGeometry(0.0085, 0.014, 1, 12, 1, true), []);
+  const laserMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: laserBeamVertexShader,
+        fragmentShader: laserBeamFragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uOpacity: { value: 0 },
+          uColor: { value: new THREE.Color("#4EF2B8") },
+        },
+      }),
+    []
+  );
+
+  // Soft rising holographic projection column from pedestal lens
+  const coneMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: projectionConeVertexShader,
+        fragmentShader: projectionConeFragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uIntensity: { value: 0.9 },
+          uColor: { value: new THREE.Color("#4EF2B8") },
+        },
+      }),
+    []
+  );
 
   const floorRingMat = useMemo(
     () =>
@@ -213,7 +257,7 @@ export function HologramAvatar() {
         side: THREE.DoubleSide,
         uniforms: {
           uTime: { value: 0 },
-          uIntensity: { value: 0.88 },
+          uIntensity: { value: 0.9 },
           uColor: { value: new THREE.Color("#4EF2B8") },
         },
       }),
@@ -229,10 +273,21 @@ export function HologramAvatar() {
       });
       particleData.geo.dispose();
       particleSprite.dispose();
-      laserGeo.dispose();
+      laserCylGeo.dispose();
+      laserMat.dispose();
+      coneMat.dispose();
       floorRingMat.dispose();
     };
-  }, [partMaterials, strokeLines, particleData, particleSprite, laserGeo, floorRingMat]);
+  }, [
+    partMaterials,
+    strokeLines,
+    particleData,
+    particleSprite,
+    laserCylGeo,
+    laserMat,
+    coneMat,
+    floorRingMat,
+  ]);
 
   const bustScale = 2.02;
   const bustBaseY = 1.78;
@@ -242,7 +297,6 @@ export function HologramAvatar() {
     const t = state.clock.elapsedTime;
     const dayFactor = useUniverseStore.getState().dayFactor;
 
-    // Smooth hover transition
     hoverSmoothRef.current = THREE.MathUtils.lerp(
       hoverSmoothRef.current,
       hovered ? 1 : 0,
@@ -250,80 +304,110 @@ export function HologramAvatar() {
     );
     const hov = hoverSmoothRef.current;
 
-    // Real-time staged reconstruction progression (5.2s total, never stalls!)
+    // 9-phase reconstruction variables
     let pGather = 1;
-    let pAlpha = 0.08;
+    let pAlpha = 0.04;
     let revealY = 0.22;
     let scanY = 0.22;
     let scanStr = 0;
     let solidMix = 1;
+    let meshGridStrength = 0.0;
     let laserAlpha = 0;
+    let coneIntensity = 0.85;
     let clothesA = 1;
     let skinA = 1;
     let eyesA = 1;
     let hairA = 1;
-    let strokeGlobalFade = 0.09;
+    let strokeGlow = 0;
     let glitch = 0;
 
     if (phase === "intro") {
-      // Elegant live preview behind the title: hovering biometric silhouette & slow vertical laser sweep
-      const sweep = -0.52 + ((Math.sin(t * 0.7) * 0.5 + 0.5) * 0.68);
-      pGather = 0.82;
-      pAlpha = 0.62;
+      // Live biometric silhouette & volumetric laser scan behind the title overlay
+      const sweep = -0.48 + (Math.sin(t * 0.65) * 0.5 + 0.5) * 0.64;
+      pGather = 0.85;
+      pAlpha = 0.52;
       revealY = sweep;
       scanY = sweep;
-      scanStr = 0.95;
-      solidMix = 0.25;
+      scanStr = 0.92;
+      solidMix = 0.28;
+      meshGridStrength = 0.72;
       laserAlpha = 0.65;
-      clothesA = 0.85;
-      skinA = 0.85;
-      eyesA = 0.85;
-      hairA = 0.85;
-      strokeGlobalFade = 0.48;
-      glitch = 0.12;
+      coneIntensity = 0.95;
+      clothesA = 0.9;
+      skinA = 0.9;
+      eyesA = 0.9;
+      hairA = 0.9;
+      strokeGlow = 0.75;
+      glitch = 0.08;
     } else {
-      if (!reducedMotion) buildClockRef.current = Math.min(6.0, buildClockRef.current + dt);
+      if (!reducedMotion) buildClockRef.current = Math.min(7.2, buildClockRef.current + dt);
       const c = buildClockRef.current;
-      const DURATION = 4.8;
+      const DURATION = 6.5;
       const norm = Math.min(1, c / DURATION);
 
-      // Stage 1 (0.0 -> 1.1s): Particles coalesce from emitter into bust silhouette
-      pGather = rangeProgress(c, 0.05, 1.5);
-      pAlpha =
-        rangeProgress(c, 0.0, 0.4) * (1 - 0.88 * rangeProgress(c, 3.6, 4.8));
+      // Phase 1 (0.0 -> 0.55s): Scene activation & projection light cone rise
+      coneIntensity = 0.35 + 0.85 * rangeProgress(c, 0.0, 0.65);
 
-      // Stage 2 (0.4 -> 3.3s): 4 focused laser beams sweep upward building jacket -> neck -> face -> eyes -> hair!
-      const sweepUp = rangeProgress(c, 0.45, 3.35);
-      revealY = THREE.MathUtils.lerp(-0.55, 0.21, sweepUp);
-      scanY = revealY;
-      scanStr =
-        rangeProgress(c, 0.35, 0.7) * (1 - rangeProgress(c, 3.6, 4.6));
-      laserAlpha =
-        rangeProgress(c, 0.3, 0.65) * (1 - rangeProgress(c, 3.4, 4.4));
+      // Phase 2 (0.4 -> 1.65s): Quantum particle formation & upward coalescence
+      pGather = rangeProgress(c, 0.45, 2.05);
+      pAlpha = rangeProgress(c, 0.35, 0.8) * (1 - 0.93 * rangeProgress(c, 5.2, 6.4));
 
-      // Stage 3: Anatomical parts appear cleanly in vertical sequence
-      clothesA = rangeProgress(c, 0.45, 1.05);
-      skinA = rangeProgress(c, 1.25, 1.95);
-      eyesA = rangeProgress(c, 2.15, 2.65);
-      hairA = rangeProgress(c, 2.55, 3.25);
+      // Phase 3 -> 6 (1.2 -> 5.05s): 4 Volumetric lasers lock & sweep torso -> face -> coily hair!
+      laserAlpha = rangeProgress(c, 1.25, 1.75) * (1 - rangeProgress(c, 5.4, 6.15));
+      const torsoSweep = rangeProgress(c, 1.85, 3.15);
+      const faceSweep = rangeProgress(c, 3.15, 4.35);
+      const hairSweep = rangeProgress(c, 4.35, 5.05);
 
-      // Stage 4 (2.7 -> 4.6s): Volumetric stabilization from holographic ghost -> crystal-clear realistic hologram!
-      solidMix = rangeProgress(c, 2.4, 4.5);
-      glitch = (1 - solidMix) * 0.22;
-      strokeGlobalFade = THREE.MathUtils.lerp(0.62, 0.08, rangeProgress(c, 3.2, 4.7));
+      if (c < 3.15) {
+        revealY = THREE.MathUtils.lerp(-0.54, -0.10, torsoSweep);
+      } else if (c < 4.35) {
+        revealY = THREE.MathUtils.lerp(-0.10, 0.055, faceSweep);
+      } else {
+        revealY = THREE.MathUtils.lerp(0.055, 0.21, hairSweep);
+      }
 
-      // Throttled HUD progress updates
+      // Phase 7 (5.05 -> 5.65s): Top-to-bottom holographic mesh stabilization scan pulse
+      const stabDown = rangeProgress(c, 5.05, 5.65);
+      scanY = c < 5.05 ? revealY : THREE.MathUtils.lerp(0.18, -0.46, stabDown);
+      scanStr = rangeProgress(c, 1.25, 1.75) * (1 - rangeProgress(c, 5.55, 6.25));
+      strokeGlow = scanStr;
+
+      // Staged anatomical appearance
+      clothesA = rangeProgress(c, 1.85, 2.45);
+      skinA = rangeProgress(c, 2.75, 3.35);
+      eyesA = rangeProgress(c, 3.65, 4.15);
+      hairA = rangeProgress(c, 4.25, 4.85);
+
+      // Phase 7 & 8: Visible holographic lattice -> cleanly fades to 0 by 6.2s when stabilized
+      const gridIn = rangeProgress(c, 1.9, 2.8);
+      const gridPeak = rangeProgress(c, 4.8, 5.3);
+      const gridFadeOut = rangeProgress(c, 5.45, 6.2);
+      meshGridStrength = gridIn * (0.55 + 0.45 * gridPeak) * (1 - gridFadeOut);
+
+      solidMix = rangeProgress(c, 4.9, 6.25);
+      glitch = (1 - solidMix) * 0.16;
+
+      // Detailed 9-phase telemetry readout
       const stage =
-        norm < 0.22
-          ? "PARTICLE COALESCENCE"
+        norm < 0.08
+          ? "01 · SCENE ACTIVATION"
+          : norm < 0.21
+          ? "02 · PARTICLE FORMATION"
+          : norm < 0.30
+          ? "03 · LASER BEAM LOCK"
           : norm < 0.48
-          ? "SILHOUETTE LASER BUILD"
-          : norm < 0.72
-          ? "FACIAL RECONSTRUCTION"
+          ? "04 · SILHOUETTE BUILD"
+          : norm < 0.67
+          ? "05 · FACIAL RECONSTRUCTION"
+          : norm < 0.78
+          ? "06 · HAIR RECONSTRUCTION"
+          : norm < 0.87
+          ? "07 · MESH STABILIZATION"
           : norm < 0.96
-          ? "VOLUMETRIC STABILIZATION"
-          : "HOLOGRAM LOCKED";
-      if (stage !== lastStageRef.current || t - lastUiReportRef.current > 0.14) {
+          ? "08 · HOLOGRAPHIC SHADER"
+          : "09 · HOLOGRAM LOCKED";
+
+      if (stage !== lastStageRef.current || t - lastUiReportRef.current > 0.12) {
         lastStageRef.current = stage;
         lastUiReportRef.current = t;
         setHologramStatus(norm, stage);
@@ -335,6 +419,7 @@ export function HologramAvatar() {
       mat.uniforms.uTime.value = t;
       mat.uniforms.uRevealY.value = revealY;
       mat.uniforms.uSolidMix.value = solidMix;
+      mat.uniforms.uMeshGridStrength.value = meshGridStrength;
       mat.uniforms.uScanY.value = scanY;
       mat.uniforms.uScanStrength.value = scanStr;
       mat.uniforms.uHover.value = hov;
@@ -347,14 +432,14 @@ export function HologramAvatar() {
       else mat.uniforms.uPartAlpha.value = clothesA;
     }
 
-    // Update horizontal scan contour rings (only visible below active laser front!)
+    // Contours illuminate ONLY near the active scanning plane -> zero zebra stripes left on face!
     for (const s of strokeLines) {
       const mat = s.line.material as THREE.LineBasicMaterial;
-      const nearFront = Math.exp(-Math.abs(s.avgY - scanY) * 26) * scanStr;
-      const revealed = s.avgY <= revealY + 0.015 ? 1 : 0;
-      const op = revealed * (strokeGlobalFade + nearFront * 0.78 + hov * 0.28);
-      mat.opacity = Math.min(0.9, op);
-      s.line.visible = op > 0.015;
+      const nearFront = Math.exp(-Math.abs(s.avgY - scanY) * 58) * strokeGlow;
+      const revealed = s.avgY <= revealY + 0.01 ? 1 : 0;
+      const op = revealed * nearFront * 0.78;
+      mat.opacity = Math.min(0.85, op);
+      s.line.visible = op > 0.02;
     }
 
     // Update coalescing circular glow particles
@@ -363,131 +448,165 @@ export function HologramAvatar() {
       const arr = posAttr.array as Float32Array;
       for (let i = 0; i < particleCount; i++) {
         const i3 = i * 3;
-        const swirl = (1 - pGather) * 2.0;
-        const cs = Math.cos(swirl + t * 0.55);
-        const sn = Math.sin(swirl + t * 0.55);
+        const swirl = (1 - pGather) * 2.4;
+        const cs = Math.cos(swirl + t * 0.65);
+        const sn = Math.sin(swirl + t * 0.65);
         const sx = particleData.start[i3];
         const sz = particleData.start[i3 + 2];
         arr[i3] = THREE.MathUtils.lerp(sx * cs - sz * sn, particleData.target[i3], pGather);
         arr[i3 + 1] =
           THREE.MathUtils.lerp(particleData.start[i3 + 1], particleData.target[i3 + 1], pGather) +
-          Math.sin(t * 1.6 + i) * 0.003 * (1 - pGather * 0.65);
+          Math.sin(t * 1.6 + i) * 0.003 * (1 - pGather * 0.7);
         arr[i3 + 2] = THREE.MathUtils.lerp(sx * sn + sz * cs, particleData.target[i3 + 2], pGather);
       }
       posAttr.needsUpdate = true;
-      (particlesRef.current.material as THREE.PointsMaterial).opacity = pAlpha + hov * 0.1;
+      (particlesRef.current.material as THREE.PointsMaterial).opacity = pAlpha + hov * 0.05;
     }
 
-    // Update active horizontal laser scan ring
+    // Update active horizontal laser scanner ring
     if (scanRingRef.current) {
       scanRingRef.current.position.y = scanY;
-      scanRingRef.current.rotation.z = t * 1.2;
+      scanRingRef.current.rotation.z = t * 1.4;
       scanRingRef.current.visible = scanStr > 0.02;
       (scanRingRef.current.material as THREE.MeshBasicMaterial).opacity = scanStr * 0.85;
     }
 
-    // Update 4 precision converging laser beams (pedestal turrets -> active scan plane on bust!)
-    if (laserLinesRef.current) {
-      laserLinesRef.current.visible = laserAlpha > 0.02;
-      if (laserAlpha > 0.02) {
-        const posAttr = laserGeo.attributes.position as THREE.BufferAttribute;
-        const colAttr = laserGeo.attributes.color as THREE.BufferAttribute;
-        const pArr = posAttr.array as Float32Array;
-        const cArr = colAttr.array as Float32Array;
-        const targetYWorld = bustBaseY + scanY * bustScale;
-        const turretR = 1.18;
-        const ringR = 0.34;
-        for (let k = 0; k < 4; k++) {
-          const ang = (k * Math.PI) / 2;
-          const sx = Math.cos(ang) * turretR;
-          const sy = 0.4;
-          const sz = Math.sin(ang) * turretR;
-          const spinAng = ang + t * 2.1;
-          const tx = Math.cos(spinAng) * ringR;
-          const tz = Math.sin(spinAng) * ringR;
-          // Primary mint laser ray
-          const o = k * 2 * 3;
-          pArr[o] = sx; pArr[o + 1] = sy; pArr[o + 2] = sz;
-          pArr[o + 3] = tx; pArr[o + 4] = targetYWorld; pArr[o + 5] = tz;
-          cArr[o] = 0.31; cArr[o + 1] = 0.95; cArr[o + 2] = 0.72;
-          cArr[o + 3] = 0.92; cArr[o + 4] = 1.0; cArr[o + 5] = 0.96;
+    // Update 4 volumetric 3D cylindrical laser beams + turret pitch + muzzle/impact flares
+    laserMat.uniforms.uTime.value = t;
+    laserMat.uniforms.uOpacity.value = laserAlpha;
 
-          // Secondary white cross-scan laser ray aiming directly at the facial/chest focal axis
-          const o2 = (4 + k) * 2 * 3;
-          pArr[o2] = sx; pArr[o2 + 1] = sy; pArr[o2 + 2] = sz;
-          pArr[o2 + 3] = Math.sin(t * 4.2 + k) * 0.14;
-          pArr[o2 + 4] = targetYWorld;
-          pArr[o2 + 5] = Math.cos(t * 3.8 + k) * 0.14;
-          cArr[o2] = 0.88; cArr[o2 + 1] = 0.98; cArr[o2 + 2] = 0.99;
-          cArr[o2 + 3] = 0.31; cArr[o2 + 4] = 0.95; cArr[o2 + 5] = 0.72;
+    const targetYWorld = bustBaseY + scanY * bustScale;
+    const turretR = 1.24;
+    const targetRingR = scanY > -0.14 ? 0.22 : 0.38;
+
+    for (let k = 0; k < 4; k++) {
+      const ang = (k * Math.PI) / 2 + Math.PI / 4;
+      scratchStart.set(Math.cos(ang) * turretR, 0.41, Math.sin(ang) * turretR);
+
+      const spinAng = ang + t * 1.85;
+      scratchEnd.set(
+        Math.cos(spinAng) * targetRingR,
+        targetYWorld,
+        Math.sin(spinAng) * targetRingR
+      );
+
+      // Aim optical turret head toward live target
+      const turret = turretHeadRefs.current[k];
+      if (turret) {
+        turret.lookAt(scratchEnd);
+      }
+
+      const beam = beamRefs.current[k];
+      if (beam) {
+        beam.visible = laserAlpha > 0.02;
+        if (beam.visible) {
+          scratchDir.subVectors(scratchEnd, scratchStart);
+          const len = scratchDir.length();
+          scratchMid.addVectors(scratchStart, scratchEnd).multiplyScalar(0.5);
+          beam.position.copy(scratchMid);
+          beam.scale.set(1, len, 1);
+          beam.quaternion.setFromUnitVectors(UP_AXIS, scratchDir.normalize());
         }
-        posAttr.needsUpdate = true;
-        colAttr.needsUpdate = true;
-        (laserLinesRef.current.material as THREE.LineBasicMaterial).opacity = laserAlpha * 0.85;
+      }
+
+      const mFlare = muzzleFlareRefs.current[k];
+      if (mFlare) {
+        mFlare.visible = laserAlpha > 0.02;
+        mFlare.position.copy(scratchStart);
+        (mFlare.material as THREE.SpriteMaterial).opacity = laserAlpha * 0.85;
+      }
+
+      const iFlare = impactFlareRefs.current[k];
+      if (iFlare) {
+        iFlare.visible = laserAlpha > 0.02;
+        iFlare.position.copy(scratchEnd);
+        (iFlare.material as THREE.SpriteMaterial).opacity = laserAlpha * 0.9;
       }
     }
 
-    // Update floor emitter ring shader
-    floorRingMat.uniforms.uTime.value = t;
-    floorRingMat.uniforms.uIntensity.value = 0.75 + hov * 0.4 + laserAlpha * 0.35;
+    // Update projection column & floor calibration rings
+    coneMat.uniforms.uTime.value = t;
+    coneMat.uniforms.uIntensity.value = coneIntensity * (1 - dayFactor * 0.25) + hov * 0.25;
 
-    // Gentle living movement: straight ID-portrait lock when Avatar is focused; slow dignified showcase orbit otherwise
+    floorRingMat.uniforms.uTime.value = t;
+    floorRingMat.uniforms.uIntensity.value = 0.78 + hov * 0.35 + laserAlpha * 0.32;
+
+    // Dignified forward-facing presence in Main & Avatar views (never spins his back to visitor!)
     if (bustGroupRef.current && !reducedMotion) {
-      if (activeZone === "avatar" || phase === "intro") {
-        const gentleSway = Math.sin(t * 0.5) * 0.035;
-        bustGroupRef.current.rotation.y = THREE.MathUtils.lerp(
-          bustGroupRef.current.rotation.y,
-          gentleSway,
-          Math.min(1, dt * 4.0)
-        );
-      } else {
-        bustGroupRef.current.rotation.y += dt * 0.14;
-      }
-      bustGroupRef.current.position.y = bustBaseY + Math.sin(t * 1.1) * 0.012;
+      const targetYaw =
+        activeZone === "avatar"
+          ? 0.04
+          : Math.sin(t * 0.42) * 0.085;
+      bustGroupRef.current.rotation.y = THREE.MathUtils.lerp(
+        bustGroupRef.current.rotation.y,
+        targetYaw,
+        Math.min(1, dt * 3.5)
+      );
+      bustGroupRef.current.position.y = bustBaseY + Math.sin(t * 1.1) * 0.011;
     }
   });
 
   return (
     <group name="HologramCenterpiece" position={[0, 0, 0]}>
-      {/* Sculpted Brushed-Titanium Emitter Pedestal */}
+      {/* Sculpted Multi-Tiered Brushed-Titanium Emitter Pedestal */}
       <group position={[0, 0, 0]}>
-        <mesh position={[0, 0.12, 0]} receiveShadow castShadow>
-          <cylinderGeometry args={[1.42, 1.58, 0.24, 64]} />
-          <meshStandardMaterial color="#141B24" metalness={0.84} roughness={0.3} />
+        <mesh position={[0, 0.11, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[1.44, 1.62, 0.22, 64]} />
+          <meshStandardMaterial color="#273240" metalness={0.78} roughness={0.32} />
         </mesh>
-        <mesh position={[0, 0.28, 0]} receiveShadow>
-          <cylinderGeometry args={[1.16, 1.30, 0.08, 64]} />
-          <meshStandardMaterial color="#1E2836" metalness={0.88} roughness={0.22} />
+        <mesh position={[0, 0.25, 0]} receiveShadow>
+          <cylinderGeometry args={[1.20, 1.34, 0.08, 64]} />
+          <meshStandardMaterial color="#344354" metalness={0.82} roughness={0.26} />
         </mesh>
-        {/* Recessed optical projector lens */}
-        <mesh position={[0, 0.325, 0]}>
-          <cylinderGeometry args={[0.92, 0.92, 0.02, 64]} />
+        <mesh position={[0, 0.305, 0]} receiveShadow>
+          <cylinderGeometry args={[1.02, 1.12, 0.04, 64]} />
+          <meshStandardMaterial color="#1D2733" metalness={0.86} roughness={0.24} />
+        </mesh>
+        {/* Recessed optical projector glass lens */}
+        <mesh position={[0, 0.33, 0]}>
+          <cylinderGeometry args={[0.90, 0.90, 0.02, 64]} />
           <meshPhysicalMaterial
-            color="#091D1B"
+            color="#0B2220"
             emissive="#4EF2B8"
-            emissiveIntensity={0.34}
-            roughness={0.12}
-            metalness={0.18}
+            emissiveIntensity={0.38}
+            roughness={0.1}
+            metalness={0.16}
             clearcoat={1}
           />
         </mesh>
-        {/* 4 Precision Optical Laser Emitter Turrets */}
-        {[0, Math.PI / 2, Math.PI, (Math.PI * 3) / 2].map((ang, i) => (
-          <group
-            key={i}
-            position={[Math.cos(ang) * 1.22, 0.36, Math.sin(ang) * 1.22]}
-            rotation={[0, -ang, 0]}
-          >
-            <mesh castShadow>
-              <boxGeometry args={[0.13, 0.12, 0.20]} />
-              <meshStandardMaterial color="#24303F" metalness={0.86} roughness={0.24} />
-            </mesh>
-            <mesh position={[-0.068, 0.02, 0]}>
-              <boxGeometry args={[0.02, 0.04, 0.11]} />
-              <meshBasicMaterial color="#4EF2B8" />
-            </mesh>
-          </group>
-        ))}
+
+        {/* 4 Articulated Optical Laser Emitter Turrets (rotated 45° so front face stays clear!) */}
+        {[0, 1, 2, 3].map((k) => {
+          const ang = (k * Math.PI) / 2 + Math.PI / 4;
+          return (
+            <group
+              key={k}
+              position={[Math.cos(ang) * 1.24, 0.33, Math.sin(ang) * 1.24]}
+            >
+              {/* Turret mounting base */}
+              <mesh position={[0, 0.02, 0]} castShadow>
+                <cylinderGeometry args={[0.075, 0.095, 0.06, 16]} />
+                <meshStandardMaterial color="#3A495B" metalness={0.85} roughness={0.26} />
+              </mesh>
+              {/* Articulated aiming barrel head */}
+              <group
+                position={[0, 0.08, 0]}
+                ref={(el) => {
+                  turretHeadRefs.current[k] = el;
+                }}
+              >
+                <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+                  <cylinderGeometry args={[0.028, 0.042, 0.14, 14]} />
+                  <meshStandardMaterial color="#253140" metalness={0.88} roughness={0.22} />
+                </mesh>
+                <mesh position={[0, 0, 0.072]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.02, 0.02, 0.01, 14]} />
+                  <meshBasicMaterial color="#7BFFDA" />
+                </mesh>
+              </group>
+            </group>
+          );
+        })}
 
         {/* Precision Holographic Calibration Floor Rings */}
         <mesh
@@ -497,18 +616,58 @@ export function HologramAvatar() {
         >
           <planeGeometry args={[3.2, 3.2]} />
         </mesh>
+
+        {/* Soft Rising Volumetric Projection Light Column */}
+        <mesh position={[0, 1.02, 0]} material={coneMat}>
+          <cylinderGeometry args={[0.64, 0.90, 1.36, 48, 1, true]} />
+        </mesh>
       </group>
 
-      {/* 4 Focused Converging Laser Reconstruction Beams (world pedestal -> moving scan plane) */}
-      <lineSegments ref={laserLinesRef} geometry={laserGeo} visible={false}>
-        <lineBasicMaterial
-          vertexColors
-          transparent
-          opacity={0}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </lineSegments>
+      {/* 4 Volumetric 3D Cylindrical Laser Beams + Muzzle & Impact Flares */}
+      {[0, 1, 2, 3].map((k) => (
+        <group key={k}>
+          <mesh
+            ref={(el) => {
+              beamRefs.current[k] = el;
+            }}
+            geometry={laserCylGeo}
+            material={laserMat}
+            visible={false}
+          />
+          <sprite
+            ref={(el) => {
+              muzzleFlareRefs.current[k] = el;
+            }}
+            scale={[0.16, 0.16, 1]}
+            visible={false}
+          >
+            <spriteMaterial
+              map={particleSprite}
+              color="#CCFFF0"
+              transparent
+              opacity={0}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </sprite>
+          <sprite
+            ref={(el) => {
+              impactFlareRefs.current[k] = el;
+            }}
+            scale={[0.14, 0.14, 1]}
+            visible={false}
+          >
+            <spriteMaterial
+              map={particleSprite}
+              color="#FFFFFF"
+              transparent
+              opacity={0}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </sprite>
+        </group>
+      ))}
 
       {/* Main Interactive Holographic Bust */}
       <group
@@ -525,12 +684,13 @@ export function HologramAvatar() {
         }}
         onClick={(e) => {
           e.stopPropagation();
+          if (e.delta > 5) return;
           focusZone("avatar", true);
         }}
       >
         <primitive object={clonedScene} />
 
-        {/* Subtle Anatomical Topographic Scan Rings */}
+        {/* Dynamic Scan Contour Slices (only light up right under active laser front!) */}
         <group>
           {strokeLines.map((s, idx) => (
             <primitive key={idx} object={s.line} />
@@ -542,7 +702,7 @@ export function HologramAvatar() {
           <pointsMaterial
             map={particleSprite}
             vertexColors
-            size={0.024}
+            size={0.022}
             transparent
             opacity={0}
             alphaTest={0.02}
@@ -554,9 +714,9 @@ export function HologramAvatar() {
 
         {/* Razor-thin Horizontal Laser Scanner Ring */}
         <mesh ref={scanRingRef} rotation={[Math.PI / 2, 0, 0]} visible={false}>
-          <ringGeometry args={[0.265, 0.282, 64]} />
+          <ringGeometry args={[0.265, 0.278, 64]} />
           <meshBasicMaterial
-            color="#A6FFE4"
+            color="#B8FFE9"
             transparent
             opacity={0}
             side={THREE.DoubleSide}
@@ -565,20 +725,20 @@ export function HologramAvatar() {
           />
         </mesh>
 
-        {phase === "active" && hovered && (
+        {/* Compact non-blocking tooltip ONLY in Main view & above head (never covers face!) */}
+        {phase === "active" && hovered && activeZone === "main" && !activePanel && (
           <Html
-            position={[0.34, 0.04, 0]}
+            position={[0, 0.25, 0]}
             center
-            distanceFactor={5.5}
             style={{ pointerEvents: "none" }}
           >
-            <div className="whitespace-nowrap rounded-md border border-[#4EF2B8]/40 bg-[#070C12]/90 px-3 py-1.5 backdrop-blur-md shadow-lg">
-              <div className="font-mono text-[10px] tracking-[0.22em] text-[#4EF2B8]">
-                CHEIKH THIAM {"//"} C0D3R-CHEIKH06
-              </div>
-              <div className="text-[11px] text-[#ECF3F7]/90">
-                Cliquer pour ouvrir la présentation
-              </div>
+            <div className="whitespace-nowrap rounded-full border border-[#4EF2B8]/40 bg-[#070C12]/90 px-3 py-1 backdrop-blur-md shadow-lg">
+              <span className="font-mono text-[10px] tracking-[0.2em] text-[#4EF2B8]">
+                CHEIKH THIAM
+              </span>
+              <span className="ml-2 font-mono text-[10px] text-[#ECF3F7]/85">
+                · Cliquer pour inspecter
+              </span>
             </div>
           </Html>
         )}

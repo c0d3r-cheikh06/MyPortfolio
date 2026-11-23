@@ -6,7 +6,7 @@ import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useUniverseStore } from "@/store/useUniverseStore";
 
-/** Generates a crisp holographic comms screen canvas texture for the Contact Monolith */
+/** Generates a crisp holographic comms screen canvas texture for the Contact Console */
 function createCommsScreenTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -61,9 +61,10 @@ function createCommsScreenTexture() {
 }
 
 /**
- * Architectural Holographic Communications Monolith (Front-Left Deck -3.6, 0, 3.2):
- *  - Brushed titanium & glass freestanding comms kiosk (zero clipping arcs!)
- *  - Crisp high-DPI contact channels screen + elevated rotating signal transmitter
+ * Architectural Cantilevered Glass & Titanium Comms Console (Front-Left Deck -3.6, 0, 3.2):
+ *  - Tiered circular brushed-titanium pedestal + angled sculptural rear spine
+ *  - Tilted beveled glass communications panel + cantilevered touch-console shelf
+ *  - Precision orbital transceiver beacon rotating above the crown
  */
 export function ContactStation() {
   const focusZone = useUniverseStore((s) => s.focusZone);
@@ -90,7 +91,7 @@ export function ContactStation() {
     const d = Math.min(rawDelta, 0.05);
     const t = state.clock.elapsedTime;
     beaconRef.current.rotation.y += d * 0.7;
-    beaconRef.current.position.y = 2.02 + Math.sin(t * 2.0) * 0.035;
+    beaconRef.current.position.y = 2.04 + Math.sin(t * 2.0) * 0.03;
   });
 
   return (
@@ -108,70 +109,109 @@ export function ContactStation() {
       }}
       onClick={(e) => {
         e.stopPropagation();
+        if (e.delta > 5) return;
         focusZone("contact", true);
       }}
     >
-      {/* Weighted Brushed-Titanium Circular Base */}
+      {/* Weighted Tiered Brushed-Titanium Circular Base */}
       <mesh position={[0, 0.06, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[0.56, 0.66, 0.12, 36]} />
-        <meshStandardMaterial color="#151E2A" metalness={0.86} roughness={0.26} />
+        <cylinderGeometry args={[0.58, 0.68, 0.12, 36]} />
+        <meshStandardMaterial color="#2B3746" metalness={0.84} roughness={0.28} />
       </mesh>
-      <mesh position={[0, 0.125, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.48, 0.52, 36]} />
+      <mesh position={[0, 0.135, 0]}>
+        <cylinderGeometry args={[0.42, 0.50, 0.04, 36]} />
+        <meshStandardMaterial color="#3B4B5E" metalness={0.86} roughness={0.24} />
+      </mesh>
+      <mesh position={[0, 0.158, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.44, 0.475, 36]} />
         <meshBasicMaterial color={hovered ? "#ECF3F7" : "#4EF2B8"} transparent opacity={0.75} />
       </mesh>
 
-      {/* Twin Vertical Brushed-Aluminum Support Stanchions */}
-      {[-0.36, 0.36].map((x, i) => (
-        <mesh key={i} position={[x, 0.92, -0.02]} castShadow>
-          <boxGeometry args={[0.055, 1.66, 0.09]} />
-          <meshStandardMaterial color="#1E2937" metalness={0.88} roughness={0.24} />
+      {/* Sculpted Cantilevered Rear Spine & Side Stanchions (cleanly behind glass console!) */}
+      <mesh position={[0, 0.86, -0.15]} rotation={[-0.12, 0, 0]} castShadow>
+        <boxGeometry args={[0.14, 1.56, 0.09]} />
+        <meshStandardMaterial color="#364658" metalness={0.86} roughness={0.26} />
+      </mesh>
+      {[-0.41, 0.41].map((x, i) => (
+        <mesh key={i} position={[x, 1.18, -0.05]} rotation={[-0.12, 0, 0]} castShadow>
+          <boxGeometry args={[0.045, 1.05, 0.065]} />
+          <meshStandardMaterial color="#47596E" metalness={0.88} roughness={0.22} />
         </mesh>
       ))}
-      {/* Top & Bottom Crossbeams */}
-      <mesh position={[0, 1.74, -0.02]} castShadow>
-        <boxGeometry args={[0.82, 0.05, 0.1]} />
-        <meshStandardMaterial color="#233040" metalness={0.88} roughness={0.22} />
-      </mesh>
 
-      {/* Frameless Glass Holographic Comms Panel */}
-      <mesh position={[0, 1.12, 0.02]} castShadow>
-        <boxGeometry args={[0.74, 0.96, 0.028]} />
-        <meshStandardMaterial color="#0F1722" metalness={0.78} roughness={0.26} />
-      </mesh>
-      <mesh position={[0, 1.12, 0.038]}>
-        <planeGeometry args={[0.68, 0.88]} />
-        <meshStandardMaterial
-          map={screenTex}
-          emissiveMap={screenTex}
-          emissive="#ffffff"
-          emissiveIntensity={hovered ? 0.95 : 0.68}
-          roughness={0.14}
-          metalness={0.08}
-        />
-      </mesh>
+      {/* Angled Holographic Touch-Console Deck Shelf */}
+      <group position={[0, 0.72, 0.10]} rotation={[-0.45, 0, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.68, 0.036, 0.28]} />
+          <meshStandardMaterial color="#344355" metalness={0.84} roughness={0.26} />
+        </mesh>
+        <mesh position={[0, 0.02, 0]}>
+          <boxGeometry args={[0.54, 0.008, 0.16]} />
+          <meshPhysicalMaterial
+            color="#0B2222"
+            emissive="#4EF2B8"
+            emissiveIntensity={0.42}
+            roughness={0.1}
+            clearcoat={1}
+          />
+        </mesh>
+      </group>
 
-      {/* Clean Elevated Orbital Signal Beacon above Monolith */}
-      <group ref={beaconRef} position={[0, 2.02, 0]}>
+      {/* Tilted Bevel-Framed Glass Communications Panel */}
+      <group position={[0, 1.24, -0.02]} rotation={[-0.12, 0, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.78, 0.98, 0.034]} />
+          <meshStandardMaterial color="#253242" metalness={0.86} roughness={0.24} />
+        </mesh>
+        <mesh position={[0, 0, 0.02]}>
+          <planeGeometry args={[0.70, 0.90]} />
+          <meshStandardMaterial
+            map={screenTex}
+            emissiveMap={screenTex}
+            emissive="#ffffff"
+            emissiveIntensity={hovered ? 0.92 : 0.68}
+            roughness={0.14}
+            metalness={0.08}
+          />
+        </mesh>
+        {/* Top Arch Header Trim */}
+        <mesh position={[0, 0.51, 0]}>
+          <boxGeometry args={[0.84, 0.036, 0.05]} />
+          <meshStandardMaterial color="#425368" metalness={0.88} roughness={0.22} />
+        </mesh>
+      </group>
+
+      {/* Precision Phased-Array Orbital Transceiver Beacon */}
+      <group ref={beaconRef} position={[0, 2.04, -0.04]}>
         <mesh>
-          <octahedronGeometry args={[0.11, 0]} />
+          <octahedronGeometry args={[0.095, 0]} />
           <meshStandardMaterial
             color="#4EF2B8"
             emissive="#4EF2B8"
-            emissiveIntensity={hovered ? 1.2 : 0.65}
+            emissiveIntensity={hovered ? 1.15 : 0.65}
             metalness={0.5}
             roughness={0.2}
           />
         </mesh>
         <mesh rotation={[Math.PI / 2.6, 0, 0]}>
-          <torusGeometry args={[0.21, 0.008, 10, 36]} />
-          <meshBasicMaterial color="#9BFFDF" transparent opacity={0.75} />
+          <torusGeometry args={[0.19, 0.008, 10, 36]} />
+          <meshStandardMaterial
+            color="#8ADCC4"
+            emissive="#4EF2B8"
+            emissiveIntensity={0.45}
+            metalness={0.85}
+            roughness={0.2}
+          />
+        </mesh>
+        <mesh rotation={[-Math.PI / 3, 0, Math.PI / 4]}>
+          <torusGeometry args={[0.24, 0.005, 8, 36]} />
+          <meshBasicMaterial color="#9BFFDF" transparent opacity={0.58} />
         </mesh>
       </group>
 
       {phase === "active" && hovered && (
-        <Html position={[0, 2.42, 0]} center distanceFactor={6.5} style={{ pointerEvents: "none" }}>
-          <div className="whitespace-nowrap rounded border border-[#4EF2B8]/40 bg-[#070C12]/90 px-2.5 py-1 font-mono text-[10px] text-[#ECF3F7] backdrop-blur-md">
+        <Html position={[0, 2.40, 0]} center style={{ pointerEvents: "none" }}>
+          <div className="whitespace-nowrap rounded-full border border-[#4EF2B8]/40 bg-[#070C12]/92 px-3 py-1 font-mono text-[10px] text-[#ECF3F7] backdrop-blur-md shadow-lg">
             <span className="text-[#4EF2B8]">COMMS {"//"}</span> CONTACT STATION
           </div>
         </Html>

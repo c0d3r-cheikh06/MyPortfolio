@@ -45,10 +45,15 @@ export function writeGLB(path, meshes, { generator = 'CHEIKH.EXE avatar generato
     attributes.POSITION = addAccessor(m.positions, 'VEC3', 5126, count, 34962, { min, max });
     if (m.normals) attributes.NORMAL = addAccessor(m.normals, 'VEC3', 5126, count, 34962);
     if (m.colors) {
-      // Compact normalized UNSIGNED_BYTE VEC4 (4 bytes/vert instead of 16 bytes/vert)
-      const u8 = new Uint8Array(m.colors.length);
-      for (let i = 0; i < m.colors.length; i++) u8[i] = Math.max(0, Math.min(255, Math.round(m.colors[i] * 255)));
-      attributes.COLOR_0 = addAccessor(u8, 'VEC4', 5121, count, 34962, { normalized: true });
+      if (m.colorFloat) {
+        const f32 = m.colors instanceof Float32Array ? m.colors : new Float32Array(m.colors);
+        attributes.COLOR_0 = addAccessor(f32, 'VEC4', 5126, count, 34962);
+      } else {
+        // Compact normalized UNSIGNED_BYTE VEC4 (4 bytes/vert instead of 16 bytes/vert)
+        const u8 = new Uint8Array(m.colors.length);
+        for (let i = 0; i < m.colors.length; i++) u8[i] = Math.max(0, Math.min(255, Math.round(m.colors[i] * 255)));
+        attributes.COLOR_0 = addAccessor(u8, 'VEC4', 5121, count, 34962, { normalized: true });
+      }
     }
     if (m.uvs) attributes.TEXCOORD_0 = addAccessor(m.uvs, 'VEC2', 5126, count, 34962);
 

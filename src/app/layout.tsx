@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import { Syne, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+const syne = Syne({
   subsets: ["latin"],
   variable: "--font-display",
-  weight: ["400", "500", "600", "700"],
+  weight: ["600", "700", "800"],
 });
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#04070B",
+  themeColor: "#04060A",
   width: "device-width",
   initialScale: 1,
 };
@@ -43,9 +43,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="fr"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
+      className={`${syne.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full bg-[#04070B] text-[#ECF3F7] font-sans selection:bg-[#4EF2B8]/25 selection:text-[#ECF3F7] overflow-x-hidden">
+      <body className="min-h-full bg-[#04060A] text-[#ECF3F7] font-sans selection:bg-[#3BF4B8]/25 selection:text-[#ECF3F7] overflow-x-hidden">
         {children}
       </body>
     </html>

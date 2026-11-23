@@ -2,12 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { ProjectItem } from "@/data/projects";
 import { hydrateThemeFromStorage, useUniverseStore } from "@/store/useUniverseStore";
 import { CinematicIntro } from "./intro/CinematicIntro";
 import { TopBar } from "./hud/TopBar";
 import { ZoneDock } from "./hud/ZoneDock";
 import { HoloPanels } from "./hud/HoloPanels";
+import { SpatialTransition } from "./hud/SpatialTransition";
 import { ClassicPortfolio } from "./classic/ClassicPortfolio";
 
 const UniverseCanvas = dynamic(
@@ -81,30 +83,48 @@ export function ExperienceShell({
     };
   }, [webglSupported, setQuality, setReducedMotion, setViewMode]);
 
-  if (viewMode === "classic" || !webglSupported) {
-    return (
-      <ClassicPortfolio
-        projects={projects}
-        syncSource={initialSyncSource}
-        webglSupported={webglSupported}
-      />
-    );
-  }
+  const isClassic = viewMode === "classic" || !webglSupported;
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-[#04070B]">
-      <UniverseCanvas projects={projects} />
-      <CinematicIntro />
-      <TopBar />
-      <ZoneDock />
-      <HoloPanels projects={projects} syncSource={initialSyncSource} />
+    <AnimatePresence initial={false}>
+      {isClassic ? (
+        <motion.div
+          key="view-classic"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          <ClassicPortfolio
+            projects={projects}
+            syncSource={initialSyncSource}
+            webglSupported={webglSupported}
+          />
+        </motion.div>
+      ) : (
+        <motion.main
+          key="view-3d"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="relative h-screen w-screen overflow-hidden bg-[#04060A]"
+        >
+          <UniverseCanvas projects={projects} />
+          <SpatialTransition />
+          <CinematicIntro />
+          <TopBar />
+          <ZoneDock />
+          <HoloPanels projects={projects} syncSource={initialSyncSource} />
 
-      {/* Subtle First-Visit Exploration Hint (bottom-left on desktop, unobtrusive) */}
-      {phase === "active" && (
-        <div className="pointer-events-none fixed bottom-24 left-6 z-20 hidden rounded-lg border border-[#ECF3F7]/10 bg-[#070C12]/65 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-[#9FB0BE] backdrop-blur-md xl:block">
-          DRAG 360° · SCROLL ZOOM · CLICK ANY MODULE
-        </div>
+          {/* Subtle First-Visit Exploration Hint (bottom-left on desktop, unobtrusive) */}
+          {phase === "active" && (
+            <div className="pointer-events-none fixed bottom-24 left-6 z-20 hidden rounded-lg border border-[#ECF3F7]/10 bg-[#070B11]/72 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-[#9FB0BE] backdrop-blur-md xl:block">
+              DRAG 360° · SCROLL ZOOM · CLICK ANY MODULE
+            </div>
+          )}
+        </motion.main>
       )}
-    </main>
+    </AnimatePresence>
   );
 }

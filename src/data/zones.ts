@@ -19,13 +19,14 @@ export interface ZoneCameraPreset {
 }
 
 /**
- * Clean, spatially separated architectural layout (zero deck clipping or overlap!):
+ * Architectural spatial layout:
  *  - Main Observatory Deck: centered at (0, 0, -0.4), radius 6.35m
  *      * Center (0, 0, 0): Hologram Pedestal + Cheikh 3D Realistic Hologram (eye level ~y=1.78)
- *      * Rear Arc (z = -2.95 to -5.45): Executive Workstation, Transparent PC Tower & 6 Project Terminals
- *      * Left Wing (-5.0, 0, -0.7): Skills Universe Gyroscopic Tech Constellation
- *      * Front-Left (-3.6, 0, 3.2): Holographic Contact Comms Monolith
- *  - Satellite Hobby Pods (cleanly separated + linked by architectural skybridges):
+ *      * Rear Workstation (z = -2.80): Executive Desk, Triple Curved Monitors, PC Tower & Studio Chair
+ *      * Elevated Rear Terrace (y = +0.26, r = 5.15m): 6 Unobstructed Project Terminals
+ *      * Left Wing (-5.0, 0, -0.7): Skills Quantum Orrery Constellation
+ *      * Front-Left (-3.6, 0, 3.2): Cantilevered Glass & Titanium Contact Console
+ *  - Satellite Hobby Pods linked by architectural skybridges:
  *      * Football Mini-Stadium: (9.9, 0, 2.3)
  *      * Gaming Alcove Pod:     (8.9, 0, -5.3)
  *      * Swimming Infinity Pod: (-9.3, 0, -5.4)
@@ -35,8 +36,8 @@ export const ZONES: Record<ZoneId, ZoneCameraPreset> = {
     id: "main",
     label: "Vue Globale",
     shortLabel: "Lab",
-    position: [0.3, 3.35, 9.2],
-    target: [0, 1.45, -0.6],
+    position: [0.25, 3.25, 9.5],
+    target: [0, 1.55, -0.7],
     fov: 44,
     accent: "#4EF2B8",
   },
@@ -44,36 +45,35 @@ export const ZONES: Record<ZoneId, ZoneCameraPreset> = {
     id: "avatar",
     label: "Hologramme · À Propos",
     shortLabel: "Cheikh",
-    // Eye-level frontal ID-photo portrait framing (shifted slightly right in target so bust sits cleanly left of right-hand HUD!)
-    position: [0.36, 1.76, 2.35],
-    target: [0.34, 1.62, 0],
-    fov: 34,
+    position: [0.32, 1.76, 2.28],
+    target: [0.30, 1.66, 0],
+    fov: 33,
     accent: "#4EF2B8",
   },
   projects: {
     id: "projects",
     label: "Projects Lab",
     shortLabel: "Projets",
-    position: [1.4, 2.45, 0.85],
-    target: [0.55, 1.38, -3.55],
-    fov: 44,
+    position: [0.0, 2.75, 0.35],
+    target: [0.0, 1.78, -4.6],
+    fov: 46,
     accent: "#38BDF8",
   },
   skills: {
     id: "skills",
     label: "Skills Universe",
     shortLabel: "Skills",
-    position: [-1.7, 2.55, 2.65],
-    target: [-4.45, 1.6, -0.75],
-    fov: 42,
+    position: [-1.55, 2.45, 2.55],
+    target: [-4.75, 1.55, -0.75],
+    fov: 40,
     accent: "#2DD4BF",
   },
   football: {
     id: "football",
     label: "Univers Football",
     shortLabel: "Football",
-    position: [6.4, 3.4, 6.7],
-    target: [10.4, 0.65, 2.1],
+    position: [6.2, 3.3, 6.4],
+    target: [9.9, 0.6, 2.2],
     fov: 42,
     accent: "#4EF2B8",
   },
@@ -81,17 +81,17 @@ export const ZONES: Record<ZoneId, ZoneCameraPreset> = {
     id: "gaming",
     label: "Univers Gaming",
     shortLabel: "Gaming",
-    position: [5.4, 2.55, -2.0],
-    target: [9.4, 1.25, -5.4],
-    fov: 42,
+    position: [6.5, 2.25, -2.7],
+    target: [8.85, 1.15, -5.25],
+    fov: 40,
     accent: "#38BDF8",
   },
   swimming: {
     id: "swimming",
     label: "Univers Natation",
     shortLabel: "Natation",
-    position: [-5.1, 3.45, -1.5],
-    target: [-8.7, 0.5, -5.4],
+    position: [-5.2, 3.15, -1.7],
+    target: [-9.1, 0.35, -5.4],
     fov: 42,
     accent: "#22D3EE",
   },
@@ -99,9 +99,9 @@ export const ZONES: Record<ZoneId, ZoneCameraPreset> = {
     id: "contact",
     label: "Contact Station",
     shortLabel: "Contact",
-    position: [-1.1, 2.05, 5.75],
-    target: [-3.15, 1.35, 3.1],
-    fov: 38,
+    position: [-1.35, 1.95, 5.55],
+    target: [-3.35, 1.28, 3.15],
+    fov: 36,
     accent: "#4EF2B8",
   },
 };

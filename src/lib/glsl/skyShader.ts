@@ -1,12 +1,15 @@
 /**
- * Photographic Living Astronomical Sky & Volumetric Cloud Shaders:
- *  1. Sky Dome + True 3D Volumetric Ray-Marched Cumulus Clouds & Horizon Cloud Sea
- *     - Physical Rayleigh + Mie atmosphere with smooth Night <-> Golden Twilight <-> Azure Day
- *     - Multi-step volumetric fBM cloud ray marching with solar Henyey-Greenstein scattering,
- *       soft self-shadowing (beer-powder dark cloud bellies + silver-white sunlit tops),
- *       and subtle moonlit cloud wisps in Night Mode.
- *     - Milky Way / deep-space nebula band fading smoothly at dawn.
- *  2. Scintillating Starfield Point Shader with airy-disk radial falloff & spectral temperatures.
+ * Photographic Living Astronomical Sky, Volumetric Perlin-Worley Cloud & Celestial Shaders:
+ *  1. Sky Dome + True 3D Spherical-Shell Volumetric Ray-Marched Cumulus Clouds + Cloud Sea
+ *     - Curved Earth-atmosphere spherical cloud layer (zero horizon stretching!)
+ *     - Fast 3D Perlin-Worley billow noise with macro weather map (sculpted clouds + clear azure sky)
+ *     - Beer-Lambert transmittance + powder effect + 3-step directional light march + Henyey-Greenstein silver lining
+ *     - Deep cosmic night sky with Milky Way rift, subtle nebulae & moonlit cloud wisps
+ *     - Smooth Golden-Hour Twilight transitions
+ *  2. Realistic Lunar Phase Surface Shader (crater bump relief + shadow terminator + earthshine)
+ *  3. Solar Photosphere & Radial Mie Corona Shader (smooth edge fade, zero hard spheres)
+ *  4. 3D Parallax Volumetric Cloud Cluster Shader (ambient spatial depth while orbiting)
+ *  5. Scintillating Spectral Starfield Point Shader
  */
 
 export const skyDomeVertexShader = /* glsl */ `
@@ -22,13 +25,14 @@ export const skyDomeFragmentShader = /* glsl */ `
   uniform float uTime;
   uniform vec3 uSunDir;
   uniform vec3 uMoonDir;
+  uniform int uCloudSteps;
 
   varying vec3 vDir;
 
-  float hash21(vec2 p) {
-    p = fract(p * vec2(127.1, 311.7));
-    p += dot(p, p + 34.345);
-    return fract(p.x * p.y);
+  float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
   }
 
   float hash31(vec3 p) {
@@ -41,10 +45,10 @@ export const skyDomeFragmentShader = /* glsl */ `
     vec2 i = floor(p);
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    float a = hash21(i);
-    float b = hash21(i + vec2(1.0, 0.0));
-    float c = hash21(i + vec2(0.0, 1.0));
-    float d = hash21(i + vec2(1.0, 1.0));
+    float a = hash12(i);
+    float b = hash12(i + vec2(1.0, 0.0));
+    float c = hash12(i + vec2(0.0, 1.0));
+    float d = hash12(i + vec2(1.0, 1.0));
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
   }
 
@@ -61,16 +65,37 @@ export const skyDomeFragmentShader = /* glsl */ `
     );
   }
 
+  // Fast 3D Worley inverted-distance cellular puff noise (1x1x1 local neighborhood)
+  float worley3(vec3 p) {
+    vec3 id = floor(p);
+    vec3 fd = fract(p);
+    float minD = 1.5;
+    for (int z = -1; z <= 1; z++) {
+      for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+          vec3 n = vec3(float(x), float(y), float(z));
+          vec3 jitter = vec3(
+            hash31(id + n),
+            hash31(id + n + vec3(17.1, 31.7, 11.3)),
+            hash31(id + n + vec3(53.9, 7.3, 41.1))
+          );
+          vec3 diff = n + jitter - fd;
+          minD = min(minD, dot(diff, diff));
+        }
+      }
+    }
+    return clamp(1.0 - sqrt(minD), 0.0, 1.0);
+  }
+
   const mat2 rot2 = mat2(0.80, -0.60, 0.60, 0.80);
 
-  // Domain-warped 5-octave fBM for organic fluffy cloud billows
-  float cloudFbm(vec2 p) {
+  float cloudFbm2(vec2 p) {
     float v = 0.0;
-    float a = 0.52;
-    for (int i = 0; i < 5; i++) {
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
       v += a * noise2(p);
-      p = rot2 * p * 2.04 + vec2(1.7, 9.2);
-      a *= 0.50;
+      p = rot2 * p * 2.03 + vec2(3.7, 8.1);
+      a *= 0.5;
     }
     return v;
   }
@@ -86,18 +111,40 @@ export const skyDomeFragmentShader = /* glsl */ `
     return v;
   }
 
-  // Evaluate volumetric cloud density at a 2D sky-plane projection with height profile
-  float sampleCloud(vec2 uv, float hFrac, float coverage) {
-    vec2 wind = vec2(uTime * 0.014, uTime * 0.006);
-    // Subtle domain warp for realistic billowing edges
-    float warp = cloudFbm(uv * 0.65 + wind * 0.5);
-    float base = cloudFbm(uv + wind + vec2(warp * 0.55, -warp * 0.35));
-    float detail = cloudFbm(uv * 2.6 - wind * 1.4);
-    float shape = base - (1.0 - detail) * 0.16;
-    // Vertical cumulus shaping: flat cloud base, billowy rounded top
-    float hProfile = smoothstep(0.0, 0.22, hFrac) * smoothstep(1.0, 0.32, hFrac);
-    float d = smoothstep(coverage, coverage + 0.34, shape * hProfile * 1.35);
-    return d;
+  // True 3D Perlin-Worley cumulus density field
+  float sampleCloud3D(vec3 p, float hFrac, float baseCov) {
+    vec3 wind = vec3(uTime * 0.14, 0.0, uTime * 0.06);
+    vec3 q = p * 0.21 + wind;
+
+    // Macro weather patchiness -> sculpted cloud banks separated by clear blue sky!
+    float weather = smoothstep(0.28, 0.74, cloudFbm2(q.xz * 0.28 + vec2(3.1, -1.7)));
+    float localCov = clamp(baseCov * (0.25 + 1.15 * weather), 0.0, 1.0);
+
+    // Base Perlin shape + cauliflower Worley billow lobes
+    float perlin = noise3(q * 1.1) * 0.65 + noise3(q * 2.3) * 0.35;
+    float wBase = worley3(q * 1.65) * 0.68 + worley3(q * 3.55) * 0.32;
+    float shape = mix(perlin, wBase, 0.54);
+
+    // Vertical cumulus shaping: flat condensation base, rounded billowy cauliflower top
+    float hProfile = smoothstep(0.0, 0.18, hFrac) * smoothstep(1.0, 0.36, hFrac);
+    float dens = smoothstep(1.0 - localCov, 1.0 - localCov + 0.24, shape) * hProfile;
+    if (dens <= 0.0) return 0.0;
+
+    // High-frequency wisp erosion on outer fringes
+    float erode = worley3(q * 4.8 + vec3(1.9, 4.3, 0.7));
+    return clamp(dens * 1.35 - (1.0 - erode) * 0.14 * (1.0 - dens), 0.0, 1.0);
+  }
+
+  float intersectSkySphere(vec3 d, float R_earth, float R_shell) {
+    float b = R_earth * d.y;
+    float c = R_shell * R_shell - R_earth * R_earth;
+    return -b + sqrt(max(b * b + c, 0.0001));
+  }
+
+  float hgPhase(float cosTheta, float g) {
+    float g2 = g * g;
+    float denom = max(1.0 + g2 - 2.0 * g * cosTheta, 0.001);
+    return (1.0 - g2) / (4.0 * 3.14159265 * pow(denom, 1.5));
   }
 
   void main() {
@@ -105,122 +152,303 @@ export const skyDomeFragmentShader = /* glsl */ `
     vec3 sunDir = normalize(uSunDir);
     vec3 moonDir = normalize(uMoonDir);
     float up = clamp(d.y, 0.0, 1.0);
-    float sunDot = max(dot(d, sunDir), 0.0);
-    float moonDot = max(dot(d, moonDir), 0.0);
+    float sunDot = clamp(dot(d, sunDir), 0.0001, 1.0);
+    float moonDot = clamp(dot(d, moonDir), 0.0001, 1.0);
 
-    // ══════════ 1. DEEP SPACE NIGHT SKY + NEBULA + LUNAR HALO ══════════
-    vec3 nightZenith = vec3(0.006, 0.011, 0.022);
-    vec3 nightMid = vec3(0.014, 0.028, 0.054);
-    vec3 nightHorizon = vec3(0.026, 0.058, 0.088);
-    vec3 nightSky = mix(nightHorizon, nightMid, smoothstep(0.0, 0.26, up));
-    nightSky = mix(nightSky, nightZenith, smoothstep(0.22, 0.82, up));
+    // ══════════ 1. DEEP SPACE NIGHT SKY + MILKY WAY + NEBULAE ══════════
+    vec3 nightZenith = vec3(0.005, 0.010, 0.024);
+    vec3 nightMid = vec3(0.012, 0.026, 0.056);
+    vec3 nightHorizon = vec3(0.024, 0.052, 0.095);
+    vec3 nightSky = mix(nightHorizon, nightMid, smoothstep(0.0, 0.28, up));
+    nightSky = mix(nightSky, nightZenith, smoothstep(0.24, 0.85, up));
 
-    // Delicate deep-space Milky Way & teal-indigo nebula band
-    float band = exp(-abs(d.y * 0.65 + d.x * 0.48 - 0.20) * 4.2);
-    float neb1 = spaceFbm(d * 3.1 + vec3(uTime * 0.002, 0.0, 0.0));
-    float neb2 = spaceFbm(d * 6.4 - vec3(0.0, uTime * 0.003, 0.0));
-    vec3 nebColor = mix(vec3(0.05, 0.12, 0.26), vec3(0.06, 0.28, 0.26), neb2);
-    nightSky += nebColor * band * smoothstep(0.42, 0.84, neb1) * 0.48;
+    // Nuanced Milky Way dust lane & deep-space sapphire/indigo/teal nebula
+    float band = exp(-abs(d.y * 0.62 + d.x * 0.50 - 0.18) * 4.5);
+    float neb1 = spaceFbm(d * 3.4 + vec3(uTime * 0.0015, 0.0, 0.0));
+    float neb2 = spaceFbm(d * 7.2 - vec3(0.0, uTime * 0.002, 0.0));
+    vec3 nebColor = mix(vec3(0.04, 0.11, 0.28), vec3(0.05, 0.24, 0.26), neb2);
+    nightSky += nebColor * band * smoothstep(0.40, 0.84, neb1) * 0.56;
 
-    // Crisp Lunar atmospheric scatter
-    nightSky += vec3(0.26, 0.40, 0.58) * pow(moonDot, 12.0) * 0.22;
-    nightSky += vec3(0.75, 0.88, 1.0) * pow(moonDot, 120.0) * 0.34;
+    // Subtle atmospheric lunar Mie glow
+    nightSky += vec3(0.22, 0.36, 0.56) * pow(moonDot, 14.0) * 0.22;
+    nightSky += vec3(0.70, 0.84, 1.0) * pow(moonDot, 120.0) * 0.26;
 
-    // ══════════ 2. LUMINOUS DAYTIME ATMOSPHERE (RAYLEIGH + MIE) ══════════
-    vec3 dayZenith = vec3(0.10, 0.33, 0.72);
-    vec3 dayMid = vec3(0.30, 0.58, 0.88);
-    vec3 dayHorizon = vec3(0.78, 0.89, 0.96);
-    vec3 daySky = mix(dayHorizon, dayMid, smoothstep(0.0, 0.28, up));
-    daySky = mix(daySky, dayZenith, smoothstep(0.26, 0.86, up));
+    // ══════════ 2. RICH MEDITERRANEAN AZURE DAY SKY (RAYLEIGH + MIE) ══════════
+    vec3 dayZenith = vec3(0.035, 0.20, 0.62);
+    vec3 dayMid = vec3(0.14, 0.45, 0.86);
+    vec3 dayHorizon = vec3(0.52, 0.76, 0.94);
+    vec3 daySky = mix(dayHorizon, dayMid, smoothstep(0.0, 0.26, up));
+    daySky = mix(daySky, dayZenith, smoothstep(0.24, 0.86, up));
 
-    // Warm golden solar Mie glow
-    daySky += vec3(1.0, 0.92, 0.76) * pow(sunDot, 8.0) * 0.28;
-    daySky += vec3(1.0, 0.97, 0.88) * pow(sunDot, 140.0) * 0.85;
+    // Warm golden solar aureole glow
+    daySky += vec3(1.0, 0.88, 0.66) * pow(sunDot, 10.0) * 0.26;
+    daySky += vec3(1.0, 0.96, 0.85) * pow(sunDot, 140.0) * 0.75;
 
-    // Cinematic Golden-Hour Twilight blend around uDayFactor = 0.5
+    // Smooth Golden-Hour Twilight blend around uDayFactor = 0.5
     float twilight = sin(uDayFactor * 3.14159265);
-    vec3 duskHorizon = vec3(0.84, 0.44, 0.26);
-    vec3 duskMid = vec3(0.20, 0.24, 0.44);
-    vec3 duskSky = mix(duskHorizon, duskMid, smoothstep(0.0, 0.44, up));
+    vec3 duskHorizon = vec3(0.86, 0.42, 0.22);
+    vec3 duskMid = vec3(0.16, 0.22, 0.46);
+    vec3 duskSky = mix(duskHorizon, duskMid, smoothstep(0.0, 0.42, up));
 
     vec3 skyCol = mix(nightSky, daySky, smoothstep(0.0, 1.0, uDayFactor));
-    skyCol = mix(skyCol, duskSky + vec3(1.0, 0.58, 0.30) * pow(sunDot, 5.0) * 0.45, twilight * 0.50);
+    skyCol = mix(skyCol, duskSky + vec3(1.0, 0.55, 0.26) * pow(sunDot, 6.0) * 0.42, twilight * 0.52);
 
-    // ══════════ 3. TRUE MULTI-LAYER VOLUMETRIC RAY-MARCHED SKY CLOUDS ══════════
-    if (d.y > 0.015) {
+    // ══════════ 3. TRUE 3D VOLUMETRIC PERLIN-WORLEY RAY-MARCHED CLOUDS ══════════
+    if (d.y > 0.008) {
+      float R_E = 56.0;
+      float R_1 = R_E + 2.6;
+      float R_2 = R_E + 5.6;
+
+      float t0 = intersectSkySphere(d, R_E, R_1);
+      float t1 = intersectSkySphere(d, R_E, R_2);
+      float marchLen = max(0.1, t1 - t0);
+      int steps = max(4, uCloudSteps);
+      float stepSize = marchLen / float(steps);
+
+      // Per-pixel jitter eliminates slicing/layer banding completely!
+      float jitter = hash12(gl_FragCoord.xy + fract(uTime) * 37.0);
+      float baseCov = mix(0.36, 0.58, uDayFactor);
+
       vec3 lightDir = normalize(mix(moonDir, sunDir, smoothstep(0.25, 0.75, uDayFactor)));
-      float lightDot = max(dot(d, lightDir), 0.0);
-      // Henyey-Greenstein forward scattering approximation (silver lining around Sun/Moon!)
-      float silverLining = pow(lightDot, 6.0) * 0.65 + pow(lightDot, 24.0) * 0.55;
+      float cosTheta = dot(d, lightDir);
+      float phase = mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, -0.25), 0.28) * 3.8 + 0.35;
 
-      // Cloud lighting palette smoothly linked to Day / Twilight / Night
-      vec3 nightLit = vec3(0.22, 0.34, 0.46);
-      vec3 nightShade = vec3(0.03, 0.06, 0.11);
-      vec3 dayLit = vec3(1.00, 0.98, 0.95);
-      vec3 dayShade = vec3(0.46, 0.58, 0.72);
-      vec3 duskLit = vec3(1.00, 0.70, 0.48);
+      vec3 nightLit = vec3(0.24, 0.38, 0.55);
+      vec3 nightAmb = vec3(0.025, 0.05, 0.095);
+      vec3 dayLit = vec3(0.92, 0.90, 0.87);
+      vec3 dayAmb = vec3(0.32, 0.45, 0.65);
+      vec3 duskLit = vec3(0.96, 0.64, 0.40);
 
       vec3 cLit = mix(nightLit, dayLit, uDayFactor);
-      cLit = mix(cLit, duskLit, twilight * 0.55);
-      vec3 cShade = mix(nightShade, dayShade, uDayFactor);
+      cLit = mix(cLit, duskLit, twilight * 0.62);
+      vec3 cAmb = mix(nightAmb, dayAmb, uDayFactor);
+      cAmb = mix(cAmb, vec3(0.34, 0.24, 0.36), twilight * 0.45);
 
-      // 6 volumetric altitude slabs marched along viewing ray
       float transmittance = 1.0;
       vec3 accumLight = vec3(0.0);
-      float coverage = mix(0.48, 0.36, uDayFactor); // sparser wisps at night, fuller cumulus by day
 
-      for (int i = 0; i < 6; i++) {
-        float fi = (float(i) + 0.5) / 6.0;
-        float slabH = 1.8 + fi * 1.15;
-        vec2 uv = (d.xz / max(d.y + 0.08, 0.09)) * slabH * 0.36;
-        float dens = sampleCloud(uv, fi, coverage);
+      for (int i = 0; i < 20; i++) {
+        if (i >= steps) break;
+        float tCur = t0 + (float(i) + jitter) * stepSize;
+        vec3 pos = vec3(0.0, R_E, 0.0) + d * tCur;
+        float hFrac = clamp((length(pos) - R_1) / (R_2 - R_1), 0.0, 1.0);
 
-        if (dens > 0.005) {
-          // One directional shadow offset sample toward the Sun/Moon for real 3D volumetric shading!
-          vec2 shadowUv = uv + lightDir.xz * 0.18;
-          float shadowDens = sampleCloud(shadowUv, min(1.0, fi + 0.22), coverage);
-          float litAmount = clamp(exp(-shadowDens * 1.75) * (0.45 + 0.55 * fi), 0.0, 1.0);
+        float dens = sampleCloud3D(pos, hFrac, baseCov);
+        if (dens > 0.01) {
+          // 3-step directional light optical-depth march toward Sun/Moon for real 3D self-shadowing!
+          float lightOD = 0.0;
+          for (int j = 1; j <= 3; j++) {
+            vec3 lPos = pos + lightDir * (float(j) * 0.52);
+            float lh = clamp((length(lPos) - R_1) / (R_2 - R_1), 0.0, 1.0);
+            lightOD += sampleCloud3D(lPos, lh, baseCov) * 0.52;
+          }
+          float beer = exp(-lightOD * 3.1);
+          float powder = 1.0 - exp(-dens * 4.2);
+          float lightEnergy = beer * (0.55 + 0.85 * powder) * phase;
 
-          vec3 stepCol = mix(cShade, cLit, litAmount);
-          stepCol += cLit * silverLining * (1.0 - shadowDens * 0.55) * mix(0.25, 0.65, uDayFactor);
-
-          float stepAlpha = dens * (0.34 + 0.22 * uDayFactor);
-          accumLight += transmittance * stepCol * stepAlpha;
-          transmittance *= (1.0 - stepAlpha);
-          if (transmittance < 0.04) break;
+          vec3 stepCol = cAmb * (0.55 + 0.45 * hFrac) + cLit * lightEnergy * 0.85;
+          float stepExt = dens * stepSize * 0.86;
+          float stepT = exp(-stepExt);
+          accumLight += transmittance * stepCol * (1.0 - stepT);
+          transmittance *= stepT;
+          if (transmittance < 0.03) break;
         }
       }
 
-      // Soft atmospheric distance fade near horizon so clouds blend seamlessly into aerial perspective
-      float horizonFade = smoothstep(0.015, 0.16, d.y);
-      float cloudAlpha = (1.0 - transmittance) * horizonFade * mix(0.62, 0.96, uDayFactor);
-      vec3 cloudColor = accumLight / max(1.0 - transmittance, 0.001);
-      skyCol = mix(skyCol, cloudColor, cloudAlpha);
+      // Soft aerial perspective blend at distant horizon (clamped below 0.96 bloom threshold!)
+      float horizonFade = smoothstep(0.012, 0.10, d.y);
+      float cloudAlpha = (1.0 - transmittance) * horizonFade * mix(0.65, 0.96, uDayFactor);
+      vec3 cloudCol = min(accumLight / max(1.0 - transmittance, 0.001), vec3(0.93));
+      skyCol = mix(skyCol, cloudCol, cloudAlpha);
     }
 
-    // ══════════ 4. INFINITE VOLUMETRIC SEA OF CLOUDS BELOW THE ORBITAL LAB ══════════
-    if (d.y < 0.03) {
-      float downMask = smoothstep(0.03, -0.14, d.y);
-      vec2 seaUv = (d.xz / max(-d.y + 0.14, 0.14)) * 0.55 + vec2(uTime * 0.012, -uTime * 0.005);
-      float sea1 = cloudFbm(seaUv);
-      float sea2 = cloudFbm(seaUv * 2.1 + vec2(3.1, 1.4));
-      float billow = smoothstep(0.22, 0.82, sea1 * 0.72 + sea2 * 0.32);
+    // ══════════ 4. INFINITE VOLUMETRIC SEA OF CLOUDS BELOW THE LAB ══════════
+    if (d.y < 0.025) {
+      float downMask = smoothstep(0.025, -0.14, d.y);
+      vec2 seaUv = (d.xz / max(-d.y + 0.16, 0.16)) * 0.65 + vec2(uTime * 0.012, -uTime * 0.005);
+      float s1 = cloudFbm2(seaUv);
+      float s2 = cloudFbm2(seaUv * 2.3 + vec2(3.1, 1.4));
+      float billow = smoothstep(0.18, 0.82, s1 * 0.72 + s2 * 0.32);
 
-      vec3 seaNightDeep = vec3(0.014, 0.028, 0.046);
-      vec3 seaNightCrest = vec3(0.06, 0.13, 0.19);
-      vec3 seaDayDeep = vec3(0.50, 0.66, 0.80);
-      vec3 seaDayCrest = vec3(0.92, 0.96, 0.99);
+      // Directional crest highlight across sea-of-clouds
+      float crest = clamp(s1 - cloudFbm2(seaUv + uSunDir.xz * 0.08), -0.3, 0.3) * 1.5 + 0.5;
+
+      vec3 seaNightDeep = vec3(0.012, 0.024, 0.044);
+      vec3 seaNightCrest = vec3(0.075, 0.145, 0.22);
+      vec3 seaDayDeep = vec3(0.42, 0.58, 0.78);
+      vec3 seaDayCrest = vec3(0.95, 0.97, 1.0);
 
       vec3 seaCol = mix(
-        mix(seaNightDeep, seaNightCrest, billow),
-        mix(seaDayDeep, seaDayCrest, billow),
+        mix(seaNightDeep, seaNightCrest, billow * (0.65 + 0.35 * crest)),
+        mix(seaDayDeep, seaDayCrest, billow * (0.65 + 0.35 * crest)),
         uDayFactor
       );
-      seaCol = mix(seaCol, vec3(0.75, 0.48, 0.38), twilight * 0.32 * billow);
+      seaCol = mix(seaCol, vec3(0.76, 0.46, 0.34), twilight * 0.35 * billow);
       skyCol = mix(skyCol, seaCol, downMask * 0.94);
     }
 
-    gl_FragColor = vec4(skyCol, 1.0);
+    gl_FragColor = vec4(max(skyCol, vec3(0.0)), 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+export const moonVertexShader = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+
+  void main() {
+    vUv = uv;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vViewDir = normalize(cameraPosition - wp.xyz);
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+export const moonFragmentShader = /* glsl */ `
+  uniform sampler2D uMap;
+  uniform sampler2D uBumpMap;
+  uniform vec3 uSunLightDir;
+  uniform float uDayFactor;
+
+  varying vec2 vUv;
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+
+  void main() {
+    vec3 albedo = texture2D(uMap, vUv).rgb;
+    float hC = texture2D(uBumpMap, vUv).r;
+    float hR = texture2D(uBumpMap, vUv + vec2(0.002, 0.0)).r;
+    float hU = texture2D(uBumpMap, vUv + vec2(0.0, 0.004)).r;
+
+    vec3 N = normalize(vNormalW);
+    vec3 tangentApprox = normalize(cross(vec3(0.0, 1.0, 0.0), N));
+    vec3 bitanApprox = cross(N, tangentApprox);
+    N = normalize(N + tangentApprox * (hC - hR) * 1.25 + bitanApprox * (hC - hU) * 1.25);
+
+    vec3 L = normalize(uSunLightDir);
+    vec3 V = normalize(vViewDir);
+    float diff = smoothstep(-0.08, 0.35, dot(N, L)) * (0.28 + 0.72 * max(dot(N, L), 0.0));
+    float fresnel = pow(max(1.0 - max(dot(N, V), 0.0), 0.0001), 3.0);
+
+    // Crisp sunlit lunar surface + subtle cool earthshine on the shadow side
+    vec3 lit = albedo * (vec3(0.95, 0.98, 1.05) * diff * 1.35 + vec3(0.04, 0.08, 0.14));
+    lit += vec3(0.45, 0.65, 0.88) * fresnel * 0.14 * diff;
+
+    float alpha = clamp(1.0 - smoothstep(0.75, 0.96, uDayFactor), 0.0, 1.0);
+    gl_FragColor = vec4(max(lit, vec3(0.0)), alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+export const sunCoronaVertexShader = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+export const sunCoronaFragmentShader = /* glsl */ `
+  uniform float uOpacity;
+  varying vec2 vUv;
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0) discard;
+
+    float disc = smoothstep(0.18, 0.12, r);
+    float innerGlow = exp(-r * 7.2) * 0.85;
+    float outerCorona = exp(-r * 3.1) * 0.34 * smoothstep(1.0, 0.45, r);
+    float energy = disc * 1.8 + innerGlow + outerCorona;
+
+    vec3 col = mix(vec3(1.0, 0.76, 0.38), vec3(1.0, 0.97, 0.88), clamp(disc + innerGlow * 0.5, 0.0, 1.0));
+    float alpha = clamp(energy * smoothstep(1.0, 0.65, r) * uOpacity, 0.0, 1.0);
+
+    gl_FragColor = vec4(max(col * (1.0 + disc * 0.8), vec3(0.0)), alpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+export const parallaxCloudVertexShader = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+export const parallaxCloudFragmentShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uDayFactor;
+  uniform float uSeed;
+
+  varying vec2 vUv;
+
+  float hash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+  }
+
+  float noise2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+      mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x),
+      f.y
+    );
+  }
+
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += a * noise2(p);
+      p = p * 2.04 + vec2(4.3, 7.1);
+      a *= 0.5;
+    }
+    return v;
+  }
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    // Asymmetric cumulus silhouette envelope (flatter base, taller rounded dome)
+    vec2 q = vec2(p.x * 1.05, (p.y + 0.15) * (p.y < -0.15 ? 1.85 : 1.15));
+    float radial = length(q);
+    float mask = smoothstep(0.95, 0.25, radial);
+    if (mask <= 0.005) discard;
+
+    vec2 uvFlow = vUv * 4.2 + vec2(uSeed * 7.3 + uTime * 0.025, uSeed * 3.1);
+    float n = fbm(uvFlow);
+    float billow = 1.0 - abs(fbm(uvFlow * 1.85 + vec2(2.7, -1.9)) * 2.0 - 1.0);
+    float puffField = mix(n, billow, 0.42);
+    float dens = smoothstep(0.28, 0.72, puffField * mask + mask * 0.25) * mask;
+    if (dens <= 0.01) discard;
+
+    // Soft top-lit cloud shading matching sky lighting (strictly below 0.96 bloom threshold!)
+    float topShade = smoothstep(-0.35, 0.65, p.y + (puffField - 0.5) * 0.35);
+    float twilight = sin(uDayFactor * 3.14159265);
+
+    vec3 nightBase = vec3(0.025, 0.05, 0.095);
+    vec3 nightTop = vec3(0.18, 0.28, 0.42);
+    vec3 dayBase = vec3(0.45, 0.58, 0.76);
+    vec3 dayTop = vec3(0.91, 0.90, 0.88);
+
+    vec3 lit = mix(mix(nightBase, nightTop, topShade), mix(dayBase, dayTop, topShade), uDayFactor);
+    lit = mix(lit, vec3(0.92, 0.60, 0.40), twilight * 0.42 * topShade);
+
+    float alpha = dens * mix(0.24, 0.62, uDayFactor);
+    gl_FragColor = vec4(min(max(lit, vec3(0.0)), vec3(0.93)), clamp(alpha, 0.0, 0.80));
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
   }
 `;
 
